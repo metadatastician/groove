@@ -7,9 +7,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod canonical;
 pub mod detect;
 pub mod init;
 pub mod probe;
 pub mod registry;
+pub mod sign;
 pub mod timefmt;
 pub mod validate;

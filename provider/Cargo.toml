@@ -3,7 +3,7 @@
 
 [package]
 name = "groove-provider"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"]
 description = "Reference Groove provider — discovery, lifecycle, attestation; the conformance target"

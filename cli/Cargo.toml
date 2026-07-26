@@ -3,7 +3,7 @@
 
 [package]
 name = "groove"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"]
 description = "CLI tool for the Groove service discovery protocol — init, validate, probe, mesh"
@@ -12,7 +12,9 @@ repository = "https://github.com/hyperpolymath/groove-protocol"
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
+ed25519-dalek = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

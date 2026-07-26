@@ -56,6 +56,11 @@ enum Commands {
         /// Output findings as JSON (panic-attack compatible format)
         #[arg(long)]
         json: bool,
+
+        /// Also verify the manifest signature (SPEC §2.1.5): self-consistency,
+        /// and the registry pin when one exists for the service.
+        #[arg(long)]
+        verify: bool,
     },
 
     /// Probe localhost for running Groove services.
@@ -104,7 +109,9 @@ async fn main() -> Result<()> {
             passive,
         } => init::run(&path, service_id.as_deref(), port, passive)?,
 
-        Commands::Validate { path, json } => validate::run(&path, json)?,
+        Commands::Validate { path, json, verify } => {
+            validate::run_with_verify(&path, json, verify)?
+        }
 
         Commands::Probe {
             host,

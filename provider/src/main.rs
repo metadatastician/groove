@@ -24,6 +24,11 @@ struct Cli {
     /// Path to a JSON manifest file to serve instead of the built-in one.
     #[arg(long)]
     manifest: Option<String>,
+
+    /// Base64 32-byte Ed25519 seed: serve a signed manifest (SPEC §2.1.5).
+    /// Falls back to the GROOVE_SIGNING_KEY environment variable.
+    #[arg(long)]
+    signing_key: Option<String>,
 }
 
 #[tokio::main]
@@ -39,15 +44,24 @@ async fn main() -> Result<()> {
         None => None,
     };
 
+    let seed_b64 = cli.signing_key.or_else(|| std::env::var("GROOVE_SIGNING_KEY").ok());
+    let signing_seed = match seed_b64 {
+        Some(b64) => Some(groove::sign::decode_seed(&b64).context("--signing-key / GROOVE_SIGNING_KEY")?),
+        None => None,
+    };
+    let signed = signing_seed.is_some();
+
     let config = groove_provider::Config {
         port: cli.port.unwrap_or_else(groove_provider::default_port),
         manifest,
         log_attestations: true,
+        signing_seed,
     };
 
     let server = groove_provider::serve(config).await?;
     println!(
-        "groove-provider: serving /.well-known/groove on [::1]:{p} and 127.0.0.1:{p}",
+        "groove-provider: serving {kind} /.well-known/groove on [::1]:{p} and 127.0.0.1:{p}",
+        kind = if signed { "SIGNED" } else { "unsigned" },
         p = server.port()
     );
 

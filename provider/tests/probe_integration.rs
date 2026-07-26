@@ -13,6 +13,7 @@ async fn probe_discovers_reference_provider() {
         port: 0,
         manifest: None,
         log_attestations: false,
+        signing_seed: None,
     })
     .await
     .expect("provider starts");

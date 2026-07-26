@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell
 = Groove Protocol Specification
 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
-v0.2.0-draft, 2026-07-02
+v0.3.0-draft, 2026-07-09
 :toc: left
 :toclevels: 4
 :icons: font
@@ -25,10 +25,14 @@ and bridge adaptation for legacy systems.
 
 Working Draft. Not yet submitted for standardisation.
 
-This is revision 0.2.0-draft (2026-07-02), superseding 0.1.0 (2026-03-23).
-It adds the manifest encoding model (§2.1.1–§2.1.4, per ADR 0002), aligns the
-JSON field set with the reference implementation, and corrects implementation-
-status claims. The version line follows ADR 0003.
+This is revision 0.3.0-draft (2026-07-09), superseding 0.2.0 (2026-07-02).
+It adds lease modes on the connection lifecycle (§4.6 — soft-expiring and
+hard-refreshing leases, the wire-observable shadow of the cleave RC-6
+occupancy lease) and the optional manifest signature member (§2.1.5, per
+ADR 0010). Revision 0.2.0 added the manifest encoding model (§2.1.1–§2.1.4,
+per ADR 0002), aligned the JSON field set with the reference implementation,
+and corrected implementation-status claims. The version line follows ADR 0003
+and ADR 0011.
 
 == Conventions
 
@@ -171,6 +175,37 @@ Content negotiation: providers SHOULD honour `Accept`; on an absent, unknown,
 or wildcard `Accept`, providers MUST default to the JSON encoding
 (bare-by-default: a consumer that knows nothing still gets a manifest it can
 parse).
+
+==== 2.1.5. Manifest signature (OPTIONAL)
+
+A manifest MAY carry a detached `signature` member (ADR 0010):
+
+[source,json]
+----
+"signature": {
+  "alg": "ed25519",
+  "public_key": "<base64, 32 bytes>",
+  "sig": "<base64, 64 bytes>",
+  "signed_at": "<RFC 3339 UTC>"
+}
+----
+
+The signed payload is the canonical JSON serialisation (UTF-8,
+lexicographically sorted object keys, minimal separators — the JCS subset
+sufficient for manifest values) of the manifest object **with the
+`signature` member removed**. Verifiers MUST reconstruct that canonical
+form; producers MUST NOT rely on any other serialisation being checked.
+
+Trust anchoring: `registry/groove-registry.json` MAY pin a `public_key`
+per service. When a registry pin exists, consumers MUST verify the
+manifest signature against the pinned key and MUST treat a mismatch (or a
+pinned service serving an unsigned manifest) as a failed discovery — the
+capability-spoofing countermeasure this member exists for. Without a pin,
+a valid signature still binds the manifest to its key but authenticates
+nothing by itself.
+
+A detached member (rather than an HTTP header) is used so the signature
+survives the static-file deployment form (§2.1.4).
 
 ==== 2.1.4. Deployment conventions and probe set
 
@@ -324,8 +359,10 @@ DISCOVERED → NEGOTIATING → CONNECTED → ACTIVE → DISCONNECTING → DISCON
 
 . Consumer discovers provider via probing or registry
 . Consumer sends `POST /.well-known/groove/connect` with its manifest
+  (optionally carrying a `lease` member, §4.6)
 . Provider checks structural compatibility
-. If compatible, provider returns a connection handle
+. If compatible, provider returns a connection handle (echoing the
+  accepted lease, if any)
 . Both sides emit `groove:connected`
 . Capabilities become available
 
@@ -336,6 +373,7 @@ Connected systems MUST exchange heartbeat messages:
 . Default interval: 5000ms
 . Default timeout: 15000ms (3 missed heartbeats)
 . Heartbeat: `GET /.well-known/groove/heartbeat` → `204 No Content`
+. With `?handle=<handle>`, a heartbeat also refreshes a hard lease (§4.6)
 . On timeout: transition to `DEGRADED` state, attempt reconnection
 . On reconnection failure after 3 attempts: transition to `DISCONNECTED`
 
@@ -354,6 +392,55 @@ When a groove partner is lost:
 . The linear connection handle is consumed (destroyed)
 . Both sides emit `groove:disconnected`
 . Capabilities revert to base
+
+=== 4.6. Lease Modes
+
+A connection MAY carry a **lease** — the wire-observable shadow of the
+cleave occupancy discipline (RC-6 in the cleave repo's
+`RANKED-OWNERSHIP-CLEAVE.adoc`; the dial framing itself remains the
+aspirational LAYERING annex — this section specifies only wire behaviour).
+
+The connect body (§4.2) MAY include:
+
+[source,json]
+----
+"lease": { "mode": "soft" | "hard", "ttl_ms": 15000 }
+----
+
+Rules:
+
+. **Absent lease** — legacy semantics (§4.3) apply unchanged. Providers
+  MUST accept lease-less connects from older consumers.
+. **Echo** — a provider that accepts a lease MUST echo the accepted
+  `lease` object beside the connection handle in the connect response.
+  A malformed lease (unknown `mode`, missing or out-of-range `ttl_ms`)
+  MUST be rejected with `400`, not silently ignored.
+. **Soft lease** — the provider MUST expire the connection once `ttl_ms`
+  elapses without renewal. Expiry MUST leave **zero provider-side residue**
+  attributable to that consumer (connection state, queued messages), and
+  MUST emit a `groove:lease-expired` attestation record (§5.1) whose body
+  carries `"residue": 0`. A soft lease MUST NOT be refreshed: providers
+  MUST NOT extend a soft lease on heartbeat and SHOULD answer such a
+  refresh attempt with `409 Conflict`.
+. **Hard lease** — `GET /.well-known/groove/heartbeat?handle=<handle>`
+  refreshes the lease: the provider MUST reset the expiry to
+  `now + ttl_ms` and answer `204`. An unknown handle answers `404`. A
+  connection whose lease is being renewed MUST NOT be reaped. After
+  **three whole missed TTL windows** the provider MUST degrade the
+  connection through the same soft-expiry path (zero-residue wipe +
+  `groove:lease-expired` attestation) — a lease never dangles between
+  alive and expired.
+. **Bare heartbeat** — `GET /.well-known/groove/heartbeat` without a
+  handle keeps its §4.3 liveness semantics (`204`).
+. **Expired handles are consumed** — a disconnect with an expired handle
+  answers `410 Gone`, exactly as a second disconnect would (§4.5): expiry
+  IS consumption of the linear handle, performed by the provider.
+
+Soft and Hard as *dial positions on one transmutable surface* — where
+softening tightens gating and raises preemptability by construction — is
+the cleave layering (LAYERING annex, TS-1..TS-7 in the cleave repo). A
+consumer that "upgrades" soft→hard reconnects with a hard lease today;
+re-dialing without reconnect is Groove v2 material.
 
 == 5. Attestation
 
