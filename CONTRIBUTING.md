@@ -1,69 +1,116 @@
-<!--
-SPDX-License-Identifier: CC-BY-SA-4.0
-Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
--->
-# Contributing
+# Clone the repository
+git clone https://github.com/hyperpolymath/squisher-corpus.git
+cd squisher-corpus
 
-> This is the default contributing guide for all `hyperpolymath` projects. A
-> repository may override or extend it with its own `CONTRIBUTING.md`. Always
-> defer to a repository's own README and build files for project-specific steps.
+# Using Nix (recommended for reproducibility)
+nix develop
 
-Thank you for considering a contribution. These projects value careful,
-well-grounded work over speed.
+# Or using toolbox/distrobox
+toolbox create squisher-corpus-dev
+toolbox enter squisher-corpus-dev
+# Install dependencies manually
 
-## Ground rules
-
-- **Foundations first.** Soundness holes and broken foundations (non-compiling
-  proofs, a falsely-"done" status, a claimed-passing test that doesn't) are fixed
-  *before* new features are built on top. If you find one, file a
-  **🕳️ Soundness hole** issue.
-- **Ground truth over status docs.** Establish what is true by *running the tool*
-  (e.g. `idris2`, `cargo`, `coqc`, `agda`), not by reading a status file.
-- **Honest claims.** If a public claim overstates what the code does, that's
-  drift — file an **🪞 Affirmation / claim drift** issue. Reporting it is welcome.
-
-## Getting set up
-
-Reproducible builds use **GNU Guix** (this estate is Guix-only — please do not
-add Nix files or propose Nix-based workflows):
-
-```sh
-git clone https://github.com/hyperpolymath/<repo>.git
-cd <repo>
-
-# Enter a reproducible dev shell (if the repo ships a manifest / guix.scm):
-guix shell -m manifest.scm      # or: guix shell -f guix.scm
-
-# Most repos expose a task runner:
-just --list
+# Verify setup
+just check   # or: cargo check / mix compile / etc.
+just test    # Run test suite
 ```
 
-If a repository documents a different toolchain in its README, follow that.
+### Repository Structure
+```
+squisher-corpus/
+├── src/                 # Source code (Perimeter 1-2)
+├── lib/                 # Library code (Perimeter 1-2)
+├── extensions/          # Extensions (Perimeter 2)
+├── plugins/             # Plugins (Perimeter 2)
+├── tools/               # Tooling (Perimeter 2)
+├── docs/                # Documentation (Perimeter 3)
+│   ├── architecture/    # ADRs, specs (Perimeter 2)
+│   └── proposals/       # RFCs (Perimeter 3)
+├── examples/            # Examples (Perimeter 3)
+├── spec/                # Spec tests (Perimeter 3)
+├── tests/               # Test suite (Perimeter 2-3)
+├── .well-known/         # Protocol files (Perimeter 1-3)
+├── .github/             # GitHub config (Perimeter 1)
+│   ├── ISSUE_TEMPLATE/
+│   └── workflows/
+├── CHANGELOG.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md      # This file
+├── GOVERNANCE.md
+├── LICENSE
+├── MAINTAINERS.md
+├── README.adoc
+├── SECURITY.md
+├── flake.nix            # Nix flake (Perimeter 1)
+└── Justfile             # Task runner (Perimeter 1)
+```
 
-## Making changes
+---
 
-1. **Open or claim an issue first** for anything non-trivial, so the work isn't
-   duplicated and the approach can be agreed.
-2. **Branch** from up-to-date `main`. Keep changes focused.
-3. **Sign your commits.** Signed commits are expected:
-   ```sh
-   git commit -S -m "your message"
-   ```
-4. **Licensing.** Code and config are `MPL-2.0`; prose documentation is
-   `CC-BY-SA-4.0`. New files should carry the appropriate `SPDX-License-Identifier`
-   header. Please do **not** change the licence of existing files — licence
-   changes are handled manually by the maintainer.
-5. **Tests and checks** should pass locally before you open a PR. Re-run the
-   project's own checks; don't rely on a status doc saying they pass.
+## How to Contribute
 
-## Opening a pull request
+### Reporting Bugs
 
-- Fill out the pull-request template.
-- Describe *what* changed and *why*; link the issue it closes.
-- Keep the PR reviewable — small, coherent diffs merge faster.
-- Be patient and kind in review; see the [Code of Conduct](CODE_OF_CONDUCT.md).
+**Before reporting**:
+1. Search existing issues
+2. Check if it's already fixed in `main`
+3. Determine which perimeter the bug affects
 
-## Questions
+**When reporting**:
 
-Open a **Discussion** for open-ended questions, or a **❓ Question** issue if you
-want a tracked answer.
+Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) and include:
+
+- Clear, descriptive title
+- Environment details (OS, versions, toolchain)
+- Steps to reproduce
+- Expected vs actual behaviour
+- Logs, screenshots, or minimal reproduction
+
+### Suggesting Features
+
+**Before suggesting**:
+1. Check the [roadmap](ROADMAP.md) if available
+2. Search existing issues and discussions
+3. Consider which perimeter the feature belongs to
+
+**When suggesting**:
+
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md) and include:
+
+- Problem statement (what pain point does this solve?)
+- Proposed solution
+- Alternatives considered
+- Which perimeter this affects
+
+### Your First Contribution
+
+Look for issues labelled:
+
+- [`good first issue`](https://github.com/hyperpolymath/squisher-corpus/labels/good%20first%20issue) — Simple Perimeter 3 tasks
+- [`help wanted`](https://github.com/hyperpolymath/squisher-corpus/labels/help%20wanted) — Community help needed
+- [`documentation`](https://github.com/hyperpolymath/squisher-corpus/labels/documentation) — Docs improvements
+- [`perimeter-3`](https://github.com/hyperpolymath/squisher-corpus/labels/perimeter-3) — Community sandbox scope
+
+---
+
+## Development Workflow
+
+### Branch Naming
+```
+docs/short-description       # Documentation (P3)
+test/what-added              # Test additions (P3)
+feat/short-description       # New features (P2)
+fix/issue-number-description # Bug fixes (P2)
+refactor/what-changed        # Code improvements (P2)
+security/what-fixed          # Security fixes (P1-2)
+```
+
+### Commit Messages
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
