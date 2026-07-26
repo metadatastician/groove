@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= ADR 0011: Version line — v0.3.0 (lease modes + manifest signing)
+:date: 2026-07-09
+:status: accepted
+
+== Context
+
+ADR 0003 fixed the version line at this repo's: v0.1.0 → v0.2.0, and retired
+the interim repo's phantom "0.3-draft" label. Two real protocol additions now
+land together: lease modes on the connection lifecycle (SPEC §4.6, the
+wire-observable shadow of cleave RC-6 — soft expires to a zero-residue wipe,
+hard refreshes on heartbeat and degrades after three missed windows) and the
+optional detached manifest signature (SPEC §2.1.5, ADR 0010).
+
+== Decision
+
+The line advances v0.2.0 → *v0.3.0*. This v0.3.0 is the real continuation of
+the ADR 0003 line and is unrelated to the retired interim "0.3-draft" label —
+that label named a 119-line sketch now preserved as `spec/LAYERING.adoc`
+(which remains an unversioned aspirational annex).
+
+Lease conformance is housed as an OPTIONAL Level 2 extension
+(CONF-L2-08..12) rather than a new level: it is lifecycle behaviour, and the
+estate-wide meanings of Level 3 (Groove-Proven) and Level 4 (Groove-Native)
+are kept unrenumbered.
+
+== Consequences
+
+Version coherence stays CI-checked across Cargo.toml / SPEC.adoc / README.
+Consumers on 0.2.0 semantics are untouched: lease-less connects and bare
+heartbeats behave exactly as before.

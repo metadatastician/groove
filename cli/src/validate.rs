@@ -28,6 +28,13 @@ pub struct Finding {
 
 /// Run the validate subcommand.
 pub fn run(path: &str, json_output: bool) -> Result<()> {
+    run_with_verify(path, json_output, false)
+}
+
+/// Run the validate subcommand, optionally verifying the manifest
+/// signature (SPEC §2.1.5): self-consistency always, and against the
+/// registry pin when one exists for the manifest's service_id.
+pub fn run_with_verify(path: &str, json_output: bool, verify: bool) -> Result<()> {
     let repo_path = Path::new(path);
 
     // Find the manifest
@@ -72,7 +79,54 @@ pub fn run(path: &str, json_output: bool) -> Result<()> {
     let manifest_file = manifest_path.to_string_lossy().to_string();
 
     findings.extend(validate_manifest_content(&content, &manifest_file));
+    if verify {
+        findings.extend(verify_signature_finding(&content, &manifest_file));
+    }
     output_findings(&findings, json_output)
+}
+
+/// Signature verification as findings (SPEC §2.1.5). Unsigned without a
+/// registry pin is a `low` note; every hard failure (pinned-but-unsigned,
+/// pin mismatch, bad signature) is `critical` — treat as failed discovery.
+pub fn verify_signature_finding(content: &str, manifest_file: &str) -> Vec<Finding> {
+    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(content) else {
+        return Vec::new(); // Check 1 already reported invalid JSON.
+    };
+    let pin = manifest["service_id"]
+        .as_str()
+        .and_then(registry::find_service)
+        .and_then(|e| e.public_key.as_deref());
+
+    match crate::sign::verify_manifest(&manifest, pin) {
+        Ok(crate::sign::VerifyOutcome::Unsigned) => vec![Finding {
+            file: Some(manifest_file.to_string()),
+            line: None,
+            severity: "low".into(),
+            description: "Manifest is unsigned (no registry pin demands a signature). Consider signing (SPEC §2.1.5).".into(),
+            check: "DOG-03-SIG".into(),
+        }],
+        Ok(crate::sign::VerifyOutcome::ValidSelf) => vec![Finding {
+            file: Some(manifest_file.to_string()),
+            line: None,
+            severity: "info".into(),
+            description: "Manifest signature verifies (self-consistent; no registry pin to authenticate against).".into(),
+            check: "DOG-03-SIG".into(),
+        }],
+        Ok(crate::sign::VerifyOutcome::ValidPinned) => vec![Finding {
+            file: Some(manifest_file.to_string()),
+            line: None,
+            severity: "info".into(),
+            description: "Manifest signature verifies against the registry-pinned key.".into(),
+            check: "DOG-03-SIG".into(),
+        }],
+        Err(e) => vec![Finding {
+            file: Some(manifest_file.to_string()),
+            line: None,
+            severity: "critical".into(),
+            description: format!("Manifest signature verification FAILED: {e:#}"),
+            check: "DOG-03-SIG".into(),
+        }],
+    }
 }
 
 /// Validate manifest content (checks 1–7). Pure — returns findings instead of

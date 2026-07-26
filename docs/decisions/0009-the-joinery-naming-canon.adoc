@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= ADR 0009: The Joinery — naming canon for the surface / protocol / data-form system
+:date: 2026-07-06
+:status: accepted
+
+== Context
+
+The system that connects components evolved through several names. It began as a single
+`groove-protocol`; as the thinking matured, the *protocol* and the connection *surface*
+separated into distinct concerns (ADR 0007), and a *data-form* layer split off again.
+Along the way the estate accumulated a sprawl of `groove-*` names and two competing
+`groove` repos (resolved in ADR 0001). The layers also drew names from two different
+metaphor families — carpentry (`cleave`, `groove`) and textile (`weft`, alongside the
+`gossamer` consumer). The mixed metaphors blurred the line between what is a *layer of
+the system* and what is merely a *consumer of it*.
+
+== Decision
+
+The system's naming metaphor is *joinery* (carpentry). Three layers, one vocabulary:
+
+[cols="1,1,3"]
+|===
+| `cleave` | the surface | The tunable integration surface. A contranym: to cleave *apart* (clean, zero-residue teardown) and to cleave *together* (deep bond) — the dial from separation to union.
+| `groove` | the protocol | Runtime capability discovery + type-safe composition. The channel a piece seats into; how deep it seats = how integrated / trusted / gated the connection is (shallow &harr; deep).
+| `spline` | the data-form | The serialise/parallelise wire layer. In joinery a spline is the thin strip that seats into a groove on both boards to carry the join — it presupposes `groove` and is the material that passes through it. Renamed from the working name `weft` (textile).
+|===
+
+*Consumers are not layers.* Anything that _uses_ the joinery — `gossamer` and `burble`
+(the two primary consumers), then `panll`, `formatrix-docs`, `game-server-admin`,
+`session-sentinel`, `vext`, … — sits outside the system and keeps its own name and its
+own metaphor. The substrate is named for the layers' function, never for its loudest
+early consumer.
+
+*Provenance is not layers.* `protocol-squisher` (frozen) and `squisher-corpus` are the
+recorded history of an earlier, stalled attempt to derive the data-form from captured
+schemas. They are evidence for _why_ `spline` exists, not a source to lift from.
+
+== Consequences
+
+* One metaphor. `weft` (textile) becomes `spline` (joinery); `cleave` and `groove` are
+  unchanged and were already joinery.
+* The layer/consumer boundary is legible from the names alone: joinery words are the
+  system; every other name is a consumer or provenance.
+* This canon should be registered estate-wide in `standards/CANONICAL-NAMES.adoc`.

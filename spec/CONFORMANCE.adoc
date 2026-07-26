@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell
 = Groove Protocol Conformance Requirements
 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
-v0.2.0-draft, 2026-07-02
+v0.3.0-draft, 2026-07-09
 :toc:
 :sectnums:
 
@@ -11,7 +11,7 @@ v0.2.0-draft, 2026-07-02
 Conformance is defined as an *executable checklist*. Every requirement below
 carries a stable ID (`CONF-<level>-<nn>`); the reference test suite implements
 exactly one test per ID (`provider/tests/conformance.rs`, function names
-`conf_l1_01` … `conf_l2_07`), run against the reference provider
+`conf_l1_01` … `conf_l2_12`), run against the reference provider
 (`groove-provider`). CI enforces that every ID in this document has a matching
 test.
 
@@ -54,6 +54,24 @@ A Level 1 system additionally MUST function without any groove partners
 A Level 2 system additionally MUST emit `groove:connected` /
 `groove:disconnected` events internally (SPEC §2.4) and SHOULD implement
 local port-probe discovery.
+
+=== Level 2 lease extension (OPTIONAL feature, SPEC §4.6)
+
+Lease support is an OPTIONAL Level 2 feature: a system that does not
+advertise it is untouched by this block, but a system claiming lease
+support MUST pass all five. (The former Levels 3/4 keep their names and
+numbers below; lease conformance is deliberately housed inside Level 2 —
+it is lifecycle behaviour, not proof.)
+
+[cols="1,4",options="header"]
+|===
+| ID | Requirement
+| CONF-L2-08 | A connect carrying `lease: {mode, ttl_ms}` MUST return `200` with the accepted lease echoed beside the handle; a malformed lease (unknown mode, bad TTL) MUST return `400` (SPEC §4.6).
+| CONF-L2-09 | A **soft** lease MUST expire at TTL absent renewal: the handle answers `410 Gone` thereafter, the expiry is attested as `groove:lease-expired` with `residue: 0`, and a refresh attempt on a soft lease MUST NOT extend it (the reference provider answers `409`).
+| CONF-L2-10 | A **hard** lease heartbeaten more often than its TTL MUST survive at least three TTL windows and still disconnect gracefully (`200`) — a connection being renewed is never reaped.
+| CONF-L2-11 | A **hard** lease with heartbeats stopped MUST survive the grace period and then degrade through the soft-expiry path after three whole missed TTL windows: `410` on disconnect, `groove:lease-expired` with `residue: 0` attested.
+| CONF-L2-12 | Lease events MUST hash-chain continuously with the §5.1 records: every record's `prev_hash` equals the previous record's `hash`, across connect / lease-expired / disconnect alike.
+|===
 
 == Aspirational levels (not yet testable)
 

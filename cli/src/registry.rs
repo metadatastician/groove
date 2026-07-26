@@ -29,6 +29,11 @@ pub struct ServiceEntry {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Optional Ed25519 public key pin (base64, 32 bytes) for manifest
+    /// signature verification (SPEC §2.1.5, ADR 0010). When present,
+    /// consumers MUST verify this service's manifest signature against it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_key: Option<String>,
 }
 
 fn default_status() -> String {

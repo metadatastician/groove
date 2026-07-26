@@ -14,6 +14,7 @@ fn entry(id: &str, offers: &[&str], consumes: &[&str]) -> ServiceEntry {
         description: String::new(),
         status: "active".to_string(),
         notes: None,
+        public_key: None,
     }
 }
 

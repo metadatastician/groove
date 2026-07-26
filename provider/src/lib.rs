@@ -10,15 +10,25 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::Instant;
 
 use groove::registry;
 use groove::timefmt::rfc3339_now;
+
+/// How often the lease sweeper looks for due leases. Short enough that the
+/// conformance suite can use sub-second TTLs.
+const SWEEP_INTERVAL: Duration = Duration::from_millis(50);
+
+/// Lease TTL bounds (SPEC §4.6): reject degenerate and absurd TTLs.
+const MIN_TTL: Duration = Duration::from_millis(10);
+const MAX_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Provider configuration.
 #[derive(Debug, Clone)]
@@ -30,6 +40,9 @@ pub struct Config {
     pub manifest: Option<Value>,
     /// Echo attestation records to stdout as JSON lines.
     pub log_attestations: bool,
+    /// Ed25519 seed: serve the manifest with a detached `signature`
+    /// member (SPEC §2.1.5, ADR 0010). None = serve unsigned.
+    pub signing_seed: Option<[u8; 32]>,
 }
 
 impl Default for Config {
@@ -38,6 +51,7 @@ impl Default for Config {
             port: default_port(),
             manifest: None,
             log_attestations: false,
+            signing_seed: None,
         }
     }
 }
@@ -68,10 +82,53 @@ pub fn builtin_manifest(port: u16) -> Value {
     })
 }
 
+/// Lease mode on a connection (SPEC §4.6): the wire-observable shadow of
+/// cleave RC-6 — soft expires, hard refreshes on heartbeat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LeaseMode {
+    Soft,
+    Hard,
+}
+
+impl LeaseMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            LeaseMode::Soft => "soft",
+            LeaseMode::Hard => "hard",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LeaseState {
+    mode: LeaseMode,
+    ttl: Duration,
+    expires_at: Instant,
+}
+
+impl LeaseState {
+    /// Is this lease due for reaping at `now`? Soft: at TTL. Hard: only
+    /// after three whole missed TTL windows (a connection still being
+    /// renewed is never reaped).
+    fn due(&self, now: Instant) -> bool {
+        match self.mode {
+            LeaseMode::Soft => now >= self.expires_at,
+            LeaseMode::Hard => now >= self.expires_at + self.ttl + self.ttl,
+        }
+    }
+}
+
+/// One live connection handle (linear: removed on disconnect or expiry).
+struct HandleEntry {
+    consumer_id: String,
+    lease: Option<LeaseState>,
+}
+
 struct State {
     manifest: Value,
-    /// Live connection handles → consumer service_id (linear: removed on disconnect).
-    handles: HashMap<String, String>,
+    /// Live connection handles (linear: removed on disconnect or lease
+    /// expiry; a removed handle answers 410 forever after).
+    handles: HashMap<String, HandleEntry>,
     /// Hash-chained provenance records (SPEC §5.1).
     attestations: Vec<Value>,
     last_hash: String,
@@ -92,7 +149,19 @@ impl State {
     }
 
     fn attest(&mut self, event: &str, consumer: &Value, capabilities: Vec<String>) {
-        let record_body = json!({
+        self.attest_with(event, consumer, capabilities, None);
+    }
+
+    /// Attest with extra fields merged into the record body before hashing
+    /// (used by lease expiry to carry `residue`/`lease`, SPEC §4.6).
+    fn attest_with(
+        &mut self,
+        event: &str,
+        consumer: &Value,
+        capabilities: Vec<String>,
+        extra: Option<Value>,
+    ) {
+        let mut record_body = json!({
             "event": event,
             "provider": {
                 "id": self.manifest["service_id"],
@@ -106,6 +175,11 @@ impl State {
             "timestamp": rfc3339_now(),
             "prev_hash": self.last_hash,
         });
+        if let Some(Value::Object(fields)) = extra {
+            for (k, v) in fields {
+                record_body[k] = v;
+            }
+        }
         let hash = format!(
             "sha256:{:x}",
             Sha256::digest(serde_json::to_vec(&record_body).expect("record serialises"))
@@ -117,6 +191,38 @@ impl State {
         }
         self.last_hash = hash;
         self.attestations.push(record);
+    }
+
+    /// Reap every due lease at `now` (SPEC §4.6): remove the handle — the
+    /// provider holds no other per-consumer state, so removal IS the
+    /// zero-residue wipe — and attest `groove:lease-expired` with
+    /// `residue: 0`. Hard leases arrive here only after three whole missed
+    /// TTL windows (degradation through the same soft path).
+    fn sweep_leases(&mut self, now: Instant) {
+        let due: Vec<String> = self
+            .handles
+            .iter()
+            .filter(|(_, e)| e.lease.is_some_and(|l| l.due(now)))
+            .map(|(h, _)| h.clone())
+            .collect();
+        for handle in due {
+            if let Some(entry) = self.handles.remove(&handle) {
+                let lease = entry.lease.expect("swept handles carry a lease");
+                self.attest_with(
+                    "groove:lease-expired",
+                    &json!({ "service_id": entry.consumer_id }),
+                    Vec::new(),
+                    Some(json!({
+                        "residue": 0,
+                        "handle": handle,
+                        "lease": {
+                            "mode": lease.mode.as_str(),
+                            "ttl_ms": lease.ttl.as_millis() as u64,
+                        },
+                    })),
+                );
+            }
+        }
     }
 }
 
@@ -143,6 +249,11 @@ impl Server {
     pub fn attestation_count(&self) -> usize {
         self.state.lock().expect("state lock").attestations.len()
     }
+
+    /// Number of live connection handles (leased or legacy).
+    pub fn handle_count(&self) -> usize {
+        self.state.lock().expect("state lock").handles.len()
+    }
 }
 
 /// Bind [::1] and 127.0.0.1 on the same port and serve. With `config.port` =
@@ -151,7 +262,11 @@ impl Server {
 pub async fn serve(config: Config) -> Result<Server> {
     let (listeners, port, has_v6) = bind_dual_stack(config.port).await?;
 
-    let manifest = config.manifest.unwrap_or_else(|| builtin_manifest(port));
+    let mut manifest = config.manifest.unwrap_or_else(|| builtin_manifest(port));
+    if let Some(seed) = &config.signing_seed {
+        manifest = groove::sign::sign_manifest(&manifest, seed)
+            .context("sign manifest (SPEC §2.1.5)")?;
+    }
     let state = Arc::new(Mutex::new(State {
         manifest,
         handles: HashMap::new(),
@@ -174,6 +289,20 @@ pub async fn serve(config: Config) -> Result<Server> {
                     }
                     Err(_) => break,
                 }
+            }
+        });
+    }
+
+    // Lease sweeper (SPEC §4.6): reap due leases on a short interval so
+    // soft expiry / hard degradation are observable behaviours, not
+    // request-time side effects.
+    {
+        let state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
+            loop {
+                ticker.tick().await;
+                state.lock().expect("state lock").sweep_leases(Instant::now());
             }
         });
     }
@@ -266,7 +395,8 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
 
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or_default();
-    let path = parts.next().unwrap_or_default();
+    let full_path = parts.next().unwrap_or_default();
+    let (path, query) = full_path.split_once('?').unwrap_or((full_path, ""));
 
     match (method, path) {
         ("GET", "/.well-known/groove") => {
@@ -310,28 +440,78 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
                 if !unmet.is_empty() {
                     (409, serde_json::to_string(&json!({ "reasons": unmet }))?)
                 } else {
-                    st.handle_counter += 1;
-                    let handle =
-                        format!("grv-{}-{}", st.handle_counter, rfc3339_now().replace([':', '-'], ""));
-                    let consumer_id =
-                        consumer["service_id"].as_str().unwrap_or("anonymous").to_string();
-                    st.handles.insert(handle.clone(), consumer_id);
-                    st.attest("groove:connected", &consumer, consumes.clone());
-                    let provider_id = st.manifest["service_id"].clone();
-                    (
-                        200,
-                        serde_json::to_string(&json!({
-                            "handle": handle,
-                            "provider": provider_id,
-                        }))?,
-                    )
+                    // Optional lease (SPEC §4.6): absent = legacy §4.3
+                    // semantics, unchanged.
+                    match parse_lease(&consumer) {
+                        Err(reason) => {
+                            (400, serde_json::to_string(&json!({ "error": reason }))?)
+                        }
+                        Ok(lease) => {
+                            st.handle_counter += 1;
+                            let handle = format!(
+                                "grv-{}-{}",
+                                st.handle_counter,
+                                rfc3339_now().replace([':', '-'], "")
+                            );
+                            let consumer_id =
+                                consumer["service_id"].as_str().unwrap_or("anonymous").to_string();
+                            st.handles.insert(
+                                handle.clone(),
+                                HandleEntry { consumer_id, lease },
+                            );
+                            st.attest("groove:connected", &consumer, consumes.clone());
+                            let provider_id = st.manifest["service_id"].clone();
+                            let mut response = json!({
+                                "handle": handle,
+                                "provider": provider_id,
+                            });
+                            if let Some(l) = lease {
+                                response["lease"] = json!({
+                                    "mode": l.mode.as_str(),
+                                    "ttl_ms": l.ttl.as_millis() as u64,
+                                });
+                            }
+                            (200, serde_json::to_string(&response)?)
+                        }
+                    }
                 }
             };
             respond(&mut stream, status, "application/json", &body).await
         }
 
         ("GET", "/.well-known/groove/heartbeat") => {
-            respond_no_content(&mut stream).await
+            // Bare heartbeat: liveness probe, 204 (SPEC §4.3, CONF-L2-03).
+            // With ?handle=H (SPEC §4.6): refresh a hard lease; a soft
+            // lease MUST be allowed to expire, so its refresh is refused.
+            let Some(handle) = query_param(query, "handle") else {
+                return respond_no_content(&mut stream).await;
+            };
+            let outcome = {
+                let mut st = state.lock().expect("state lock");
+                // Expiry is wall-clock, not sweeper-tick (SPEC §4.6): reap
+                // due leases before the lookup so an expired handle is
+                // already consumed (404), and a hard lease past three whole
+                // missed TTL windows cannot be resurrected by this refresh.
+                st.sweep_leases(Instant::now());
+                match st.handles.get_mut(&handle) {
+                    None => Some((404, r#"{"error":"unknown or already-consumed handle"}"#)),
+                    Some(entry) => match &mut entry.lease {
+                        None => None, // legacy connection: heartbeat is a no-op probe
+                        Some(l) if l.mode == LeaseMode::Hard => {
+                            l.expires_at = Instant::now() + l.ttl;
+                            None
+                        }
+                        Some(_) => Some((
+                            409,
+                            r#"{"error":"soft lease must be allowed to expire; refresh refused"}"#,
+                        )),
+                    },
+                }
+            };
+            match outcome {
+                None => respond_no_content(&mut stream).await,
+                Some((status, body)) => respond(&mut stream, status, "application/json", body).await,
+            }
         }
 
         ("POST", "/.well-known/groove/disconnect") => {
@@ -342,13 +522,18 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
 
             let (status, body) = {
                 let mut st = state.lock().expect("state lock");
+                // Expiry IS consumption (SPEC §4.6): reap due leases first
+                // so a disconnect with an expired handle answers 410 and the
+                // zero-residue groove:lease-expired attestation is emitted
+                // rather than lost.
+                st.sweep_leases(Instant::now());
                 match st.handles.remove(&handle) {
-                    Some(consumer_id) => {
+                    Some(entry) => {
                         // Linear consumption: the handle is gone; a second
                         // disconnect with it gets 410 (CONF-L2-04).
                         st.attest(
                             "groove:disconnected",
-                            &json!({ "service_id": consumer_id }),
+                            &json!({ "service_id": entry.consumer_id }),
                             Vec::new(),
                         );
                         (200, r#"{"disconnected":true}"#)
@@ -365,7 +550,16 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
                 let connections: Vec<Value> = st
                     .handles
                     .iter()
-                    .map(|(h, consumer)| json!({ "handle": h, "consumer": consumer }))
+                    .map(|(h, entry)| {
+                        json!({
+                            "handle": h,
+                            "consumer": entry.consumer_id,
+                            "lease": entry.lease.map(|l| json!({
+                                "mode": l.mode.as_str(),
+                                "ttl_ms": l.ttl.as_millis() as u64,
+                            })),
+                        })
+                    })
                     .collect();
                 serde_json::to_string(&json!({ "connections": connections }))?
             };
@@ -382,6 +576,43 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
 
         _ => respond(&mut stream, 404, "text/plain", "not found").await,
     }
+}
+
+/// Parse the optional `lease` member of a connect body (SPEC §4.6).
+/// Absent → Ok(None) (legacy semantics). Present → both `mode` and
+/// `ttl_ms` are required, mode ∈ {soft, hard}, TTL within bounds.
+fn parse_lease(consumer: &Value) -> std::result::Result<Option<LeaseState>, String> {
+    let lease = match consumer.get("lease") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(l) => l,
+    };
+    let mode = match lease["mode"].as_str() {
+        Some("soft") => LeaseMode::Soft,
+        Some("hard") => LeaseMode::Hard,
+        Some(other) => return Err(format!("lease.mode must be 'soft' or 'hard', got '{other}'")),
+        None => return Err("lease.mode is required when lease is present".to_string()),
+    };
+    let ttl_ms = lease["ttl_ms"]
+        .as_u64()
+        .ok_or_else(|| "lease.ttl_ms is required when lease is present".to_string())?;
+    let ttl = Duration::from_millis(ttl_ms);
+    if !(MIN_TTL..=MAX_TTL).contains(&ttl) {
+        return Err(format!(
+            "lease.ttl_ms must be between {} and {}",
+            MIN_TTL.as_millis(),
+            MAX_TTL.as_millis()
+        ));
+    }
+    Ok(Some(LeaseState { mode, ttl, expires_at: Instant::now() + ttl }))
+}
+
+/// Extract a query parameter from a raw query string (no percent-decoding:
+/// groove handles are URL-safe by construction).
+fn query_param(query: &str, name: &str) -> Option<String> {
+    query.split('&').find_map(|pair| {
+        let (k, v) = pair.split_once('=')?;
+        (k == name && !v.is_empty()).then(|| v.to_string())
+    })
 }
 
 /// Content negotiation (SPEC §2.1.3): serve A2ML only when the Accept header

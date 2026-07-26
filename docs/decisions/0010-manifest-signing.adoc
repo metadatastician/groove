@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= ADR 0010: Manifest signing — Ed25519 over canonical JSON, registry-pinned
+:date: 2026-07-09
+:status: accepted
+
+== Context
+
+Capability spoofing is unmitigated in v0.2: any process can serve a manifest
+claiming any capability set (cleave PROOF-NEEDS `G-5` "Manifests
+unsigned/untyped on the wire", obligation `O-8` "declared capabilities match
+implementation; capability tokens are unspoofable on the wire"). The
+LAYERING annex already anticipated a "typed, signable" manifest.
+
+== Decision
+
+. **Scheme** — Ed25519 over a canonical JSON serialisation (the RFC 8785/JCS
+  subset sufficient for manifests: UTF-8, lexicographically sorted keys,
+  minimal separators, RFC 8259 string escaping; integer-only numbers,
+  enforced). Implemented in `cli/src/canonical.rs` + `cli/src/sign.rs`.
+. **Wire shape** — a detached `signature` member on the manifest object
+  (SPEC §2.1.5): `{alg, public_key, sig, signed_at}`, base64 key and sig.
+  The signed payload is the manifest **without** that member. A detached
+  member (not an HTTP header) so the signature survives the static-file
+  deployment form (SPEC §2.1.4) and any JSON re-serialisation.
+. **Trust anchor** — `registry/groove-registry.json` MAY pin `public_key`
+  per service. The registry is already the compile-time-embedded single
+  source of truth (ADR 0006), which makes it the natural pinning root:
+  a pinned service serving an unsigned or mismatching manifest is a failed
+  discovery. Without a pin, a valid signature binds the manifest to its key
+  but authenticates nothing by itself — stated, not hidden.
+. **Producer** — the reference provider signs when `--signing-key` /
+  `GROOVE_SIGNING_KEY` (base64 32-byte seed) is set. Burble signing via
+  Erlang `:crypto` eddsa is a stretch leg; canonical bytes MUST match this
+  implementation (shared test vectors in `canonical.rs`).
+. **Verifiers** — `groove validate --verify` (self-consistency + pin);
+  probing consumers SHOULD verify pinned services. The gossamer consumer
+  leg (`std.crypto.sign.Ed25519`) is Phase 2 and is the remaining O-8 leg,
+  tracked in cleave PROOF-NEEDS.
+
+== Consequences
+
+* G-5 moves from "unmitigated" to "design adopted + reference
+  implementation"; O-8 is partially discharged (provider + CLI legs).
+* The registry schema gains an OPTIONAL `public_key` field
+  (`#[serde(default)]` — old registries parse unchanged).
+* Key management is deliberately out of scope here: seeds live in
+  deployment secrets (env), never in the repo. Rotation = update the
+  registry pin (a reviewed change, like any registry edit).
