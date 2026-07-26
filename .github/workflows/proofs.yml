@@ -11,6 +11,7 @@ on:
     - cron: "17 6 * * 1" # weekly, Monday morning
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
