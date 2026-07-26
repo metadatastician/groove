@@ -17,9 +17,9 @@ jobs:
     name: build + test (workspace incl. conformance suite)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: dtolnay/rust-toolchain@77011b6065363453e991777897939c35b0758994 # stable
+      - uses: Swatinem/rust-cache@256b378d862903612d95a6e817f9252c79067889 # v2
       - run: cargo build --workspace
       - run: cargo test --workspace
 
@@ -27,8 +27,8 @@ jobs:
     name: generated port tables match registry
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: actions/setup-node@0a4a298c106270599640615695ea461254255428 # v4
         with:
           node-version: "22"
       - run: node clients/browser-extension/scripts/gen-targets.mjs --check
@@ -37,8 +37,8 @@ jobs:
     name: browser extension lint + structure + unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: actions/setup-node@0a4a298c106270599640615695ea461254255428 # v4
         with:
           node-version: "22"
       - run: npx --yes web-ext lint --source-dir clients/browser-extension
@@ -52,13 +52,13 @@ jobs:
     # promote to required once this job passes, then it gates all grv6 changes.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
       # Pin the zig version the reference targets. The code uses std.net
       # (Address.parseIp6 / addr.listen / server.accept) and
       # std.time.nanoTimestamp — both removed by zig 0.16's std.Io networking
       # rework. Migrating reference/ipv6t to the 0.16 Io API is a tracked
       # follow-up; until then, build against 0.14.x as authored.
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d8b3ca428837f902043b1448c423426027e3c004 # v2
         with:
           version: 0.14.1
       - run: zig build test
@@ -68,7 +68,7 @@ jobs:
     name: spec/conformance/version coherence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
       - name: every CONF ID in CONFORMANCE.adoc has a matching test
         run: |
           set -euo pipefail
