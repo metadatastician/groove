@@ -1,0 +1,17 @@
+{
+  "comment": "Byte-identical vendored copies of upstream files. Do not edit them here; CI (proofs.yml vendor-integrity) diffs each against source_repo@source_ref:source_path and fails on any difference. To update: re-copy from upstream and bump source_ref.",
+  "entries": [
+    {
+      "file": "proofs/Gossamer/ABI/Types.idr",
+      "source_repo": "metadatastician/gossamer",
+      "source_ref": "99123bfd44b8538976a52a95df5f58bb97598326",
+      "source_path": "src/interface/abi/Types.idr"
+    },
+    {
+      "file": "proofs/Gossamer/ABI/Groove.idr",
+      "source_repo": "metadatastician/gossamer",
+      "source_ref": "99123bfd44b8538976a52a95df5f58bb97598326",
+      "source_path": "src/interface/abi/Groove.idr"
+    }
+  ]
+}
