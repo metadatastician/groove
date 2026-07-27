@@ -1,5 +1,5 @@
 {
-  "comment": "Byte-identical vendored copies of upstream files. Do not edit them here; CI (proofs.yml vendor-integrity) diffs each against source_repo@source_ref:source_path and fails on any difference. To update: re-copy from upstream and bump source_ref.",
+  "comment": "Byte-identical vendored copies of upstream files. Do not edit them here; CI (proofs.yml vendor-integrity) diffs each against source_repo@source_ref:source_path and fails on any difference. To update: re-copy from upstream and bump source_ref. NOTE: the proven-servers entries are provisionally pinned to the PR branch SHA of hyperpolymath/proven-servers#57; RE-PIN to the post-merge main SHA once #57 lands (squash-merge makes branch SHAs unreachable, which would eventually break the raw fetch).",
   "entries": [
     {
       "file": "proofs/Gossamer/ABI/Types.idr",
@@ -12,6 +12,42 @@
       "source_repo": "metadatastician/gossamer",
       "source_ref": "99123bfd44b8538976a52a95df5f58bb97598326",
       "source_path": "src/interface/abi/Groove.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouter/Types.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouter/Types.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouterABI.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouterABI.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouterABI/Layout.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouterABI/Layout.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouterABI/Foreign.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouterABI/Foreign.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouterABI/Transitions.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouterABI/Transitions.idr"
+    },
+    {
+      "file": "proofs/TypedFrameRouterABI/Proofs.idr",
+      "source_repo": "hyperpolymath/proven-servers",
+      "source_ref": "0d86d675421090760b46fe888625cb519dd58357",
+      "source_path": "not-proven/proven-typed-frame-router/src/TypedFrameRouterABI/Proofs.idr"
     }
   ]
 }

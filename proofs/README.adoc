@@ -40,10 +40,12 @@ vendored dependencies, matching their declared `module Gossamer.ABI.*` names.
   comparability. The `Groove.*` rename is a separate, future decision.
 * The gate is ipkg-based on purpose: idris2 0.7.0 `--check file.idr` exits 0 on
   module-load errors (measured 2026-07-27), so a per-file loop is a fake gate.
-* `reference/groove-proxy/GrooveProxy.idr` is **not** in the package: its
-  `TypedFrameRouter*` dependencies live in `proven-servers` under `not-proven/`,
-  and its `noReverseTranslation` lemma is genuinely rejected (under
-  investigation) — it remains text, not proof.
+* `GrooveProxy.idr` is **in the package** (moved from `reference/groove-proxy/`,
+  2026-07-27): its `TypedFrameRouter*` dependencies are vendored byte-identical
+  from `proven-servers` (fixed there in hyperpolymath/proven-servers#57 — the
+  `noReverseTranslation` lemma was TRUE all along; the old proof style plus the
+  lowercase auto-bind trap were the blockers), and `grooveNoReverse` is now
+  proved via the repaired general lemma.
 
 == PROOFS-1 — remaining evolution (open)
 
