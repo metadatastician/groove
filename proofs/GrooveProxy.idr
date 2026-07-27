@@ -28,18 +28,20 @@ import TypedFrameRouterABI.Proofs
 public export
 grooveProxyConfig : (port : Bits16) -> RouterConfig
 grooveProxyConfig port = MkRouterConfig
-  { source         = MkEndpoint IPv4 "127.0.0.1" port
-  , target         = MkEndpoint IPv6 "::1" port
+  { translation    = Translate IPv4 IPv6
+  , srcBindAddr    = "127.0.0.1"
+  , srcPort        = port
+  , dstTargetAddr  = "::1"
+  , dstPort        = port
   , maxConnections = 64
   , bufferSize     = 4096
-  , translation    = MkTranslation IPv4 IPv6
   }
 
 ||| The Groove proxy direction is always IPv4→IPv6.
 ||| This is a specialisation of the general FrameTranslation.
 public export
 grooveDirection : FrameTranslation
-grooveDirection = MkTranslation IPv4 IPv6
+grooveDirection = Translate IPv4 IPv6
 
 ---------------------------------------------------------------------------
 -- Groove-specific proofs (derived from general proofs)
@@ -55,5 +57,10 @@ grooveTransportSafe = transportTransparency
 
 ||| The Groove proxy cannot be reversed to IPv6→IPv4.
 public export
-grooveNoReverse : (MkTranslation IPv6 IPv4 = grooveDirection) -> Void
-grooveNoReverse Refl impossible
+grooveNoReverse : (Translate IPv6 IPv4 = GrooveProxy.grooveDirection) -> Void
+grooveNoReverse eq = noReverseTranslation IPv4 IPv6 famNeq (trans eq dirDef)
+  where
+    dirDef : GrooveProxy.grooveDirection = Translate IPv4 IPv6
+    dirDef = Refl
+    famNeq : Not (IPv4 = IPv6)
+    famNeq Refl impossible

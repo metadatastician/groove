@@ -16,7 +16,14 @@ brief = "Idris2 proofs for the Groove protocol (handshake termination, capabilit
 sourcedir = "proofs"
 depends = base
 
-modules = Gossamer.ABI.Types
+modules = TypedFrameRouter.Types
+        , TypedFrameRouterABI
+        , TypedFrameRouterABI.Layout
+        , TypedFrameRouterABI.Foreign
+        , TypedFrameRouterABI.Transitions
+        , TypedFrameRouterABI.Proofs
+        , GrooveProxy
+        , Gossamer.ABI.Types
         , Gossamer.ABI.Groove
         , Gossamer.ABI.IPCDispatch
         , Gossamer.ABI.CapabilityAuthenticity
