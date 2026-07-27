@@ -1,0 +1,23 @@
+-- SPDX-License-Identifier: MPL-2.0
+-- Groove protocol proofs, relocated from gossamer (PROOFS-1; owner ruling
+-- 2026-07-27: finish the relocation). The three proof modules keep their
+-- canonical Gossamer.ABI.* names deliberately — the cross-repo agreement
+-- check compares theorem surfaces by module name, and a rename would break
+-- comparability (a Groove.* rename remains a separate, future decision).
+-- Gossamer.ABI.{Types,Groove} are byte-identical VENDORED copies of the
+-- upstream gossamer sources — see proofs/VENDOR.json; CI diffs them against
+-- the pinned upstream commit and fails on drift.
+package groove-proofs
+version = 0.1.0
+authors = "Jonathan D.A. Jewell"
+license = "MPL-2.0"
+brief = "Idris2 proofs for the Groove protocol (handshake termination, capability authenticity, IPC dispatch)"
+
+sourcedir = "proofs"
+depends = base
+
+modules = Gossamer.ABI.Types
+        , Gossamer.ABI.Groove
+        , Gossamer.ABI.IPCDispatch
+        , Gossamer.ABI.CapabilityAuthenticity
+        , Gossamer.ABI.GrooveTermination
