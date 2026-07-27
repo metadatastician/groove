@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 = Groove Layering on Cleave (Aspirational Annex)
 :doctype: book
-:revnumber: annex-1
-:revdate: 2026-07-02
+:revnumber: annex-2
+:revdate: 2026-07-27
 :toc: macro
 :toclevels: 3
 :sectnums:
@@ -13,10 +13,17 @@
 *STATUS: ASPIRATIONAL ANNEX — NOT NORMATIVE.*
 
 This annex describes a possible future layering of Groove on the *Cleave
-interface engine* (the transmutable dial) and a *weft* wire layer (Bebop
-control plane / WebRTC media plane). Neither cleave nor weft has an
-implementation today; nothing in this annex is normative for Groove v0.x.
-The normative protocol is defined by `SPEC.adoc` and `TRANSPORT.adoc`.
+interface engine* (the transmutable dial) and a *spline* wire layer (Bebop
+control plane / WebRTC media plane). As of this revision cleave has a
+demonstrable kernel (cleave repo `docs/KERNEL.adoc`) and spline is a
+seed-phase repo (design + ADRs, no `src/` yet); nothing in this annex is
+normative for Groove v0.x. The normative protocol is defined by `SPEC.adoc`
+and `TRANSPORT.adoc`.
+
+NOTE: The wire layer was called *weft* in the 2026-06 design line; it was
+renamed *spline* by the joinery naming canon
+(`docs/decisions/0009-the-joinery-naming-canon.adoc`) and now lives at the
+`spline` repo. This annex uses the canonical name.
 
 It is preserved here so the Soft/Hard dial framing — the most valuable idea
 from the 2026-06 design line (formerly the `groove` repo, now archived) — is
@@ -29,8 +36,8 @@ for a Groove v2 layering discussion.
 Groove is a capability-based protocol for service discovery and inter-component
 communication. This annex sketches Groove *layered on the Cleave interface
 engine*. Cross-references: the lifecycle/residue discipline lives in the cleave
-repo (`docs/standards/RANKED-OWNERSHIP-CLEAVE.adoc`); the wire layer is weft
-(not yet built).
+repo (`docs/standards/RANKED-OWNERSHIP-CLEAVE.adoc`); the wire layer is spline
+(seed phase, not yet built).
 
 toc::[]
 
@@ -39,7 +46,7 @@ toc::[]
 [%hardbreaks]
 *cleave* — the interface engine (the transmutable dial, WF/OF staircase, linear
 handles, self-dual zero-residue teardown). *This layering depends on it.*
-*weft* — the data-form / wire layer (Bebop control plane, WebRTC media plane).
+*spline* — the data-form / wire layer (Bebop control plane, WebRTC media plane).
 *groove* — THIS protocol: discovery + typed negotiation + Soft/Hard modes.
 *consumers* — gossamer, panll, burble import groove; they do not define it.
 
@@ -92,7 +99,7 @@ carrying at least:
 * `dependencies` — service + version + rationale
 * a *signature* over the manifest (authenticity)
 
-== Transport planes (delegated to weft)
+== Transport planes (delegated to spline)
 
 The B perp C decoupling (membrane contract independent of wire format) means this
 layering specifies *which typed planes* groove carries, not the bytes:
@@ -105,7 +112,7 @@ layering specifies *which typed planes* groove carries, not the bytes:
 |===
 
 Do NOT invent a wire format here; align to what consumers already speak. This is also
-why weft (data-form) is a thin alignment layer, not a new serialiser — see the
+why spline (data-form) is a thin alignment layer, not a new serialiser — see the
 protocol-squisher caution.
 
 == Security
@@ -129,7 +136,7 @@ of SPEC.adoc §4 — this delegation only applies if/when the cleave layering la
 == What this annex deliberately omits
 
 * The dial/staircase mechanism itself — that is cleave.
-* The byte encoding — that is weft + Bebop/WebRTC.
+* The byte encoding — that is spline + Bebop/WebRTC.
 * Non-graceful teardown — survivor-owns-the-wipe (cleave RC-10/RC-13).
 
 == Provenance
