@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
-= Groove protocol proofs (relocated from gossamer — NOT YET DECOUPLED)
+= Groove protocol proofs (relocated from gossamer — WIRED & GATED here)
 :toc: macro
 
 [abstract]
 Three Idris2 proof modules moved *wholesale* out of `hyperpolymath/gossamer` on
 2026-06-16 (via the interim `groove` repo, consolidated here 2026-07-02 per ADR
-0001). This is a *provenance archive*, not yet wired. **Nothing in this
-directory is verified in this repo — do not describe these proofs as "done" or
-"verified" anywhere.**
+0001). As of 2026-07-27 (owner ruling: *finish the relocation*) they are
+**wired and machine-verified in this repo**: `groove-proofs.ipkg` builds them
+against byte-identical vendored copies of `Gossamer.ABI.{Types,Groove}`
+(`proofs/VENDOR.json` pins the upstream commit; CI diffs on every run), and the
+`proofs` workflow is a REAL gate (ipkg `--typecheck`, no `continue-on-error`).
 
 toc::[]
 
@@ -22,26 +24,38 @@ toc::[]
 | `CapabilityAuthenticity.idr` | Declared capabilities match their implementations (manifest authenticity; no phantom capabilities; attenuation/revocation).
 |===
 
-== Status — MOVED WHOLESALE, NOT YET DECOUPLED (read this)
+== Status — WIRED, VERIFIED, DRIFT-GUARDED (2026-07-27)
 
-These were relocated *as-is*. They are **not** compilable in this repo:
+Layout: `proofs/Gossamer/ABI/` holds the three proof modules plus the two
+vendored dependencies, matching their declared `module Gossamer.ABI.*` names.
 
-* They still declare `module Gossamer.ABI.*` and `import Gossamer.ABI.{Types, Groove}`.
-* There is no ipkg / no `Types.idr` / `Groove.idr` here, so they will not typecheck
-  standing alone.
-* No CI verifies them: idris2 is not part of the default toolchain. The allow-fail
-  `proofs.yml` workflow attempts a typecheck; until it is green these files are text,
-  not proofs.
+* `groove-proofs.ipkg` (repo root) typechecks all five modules; the `proofs`
+  workflow runs it on every PR/push touching `proofs/**` (plus weekly cron).
+* `Types.idr` and `Groove.idr` are **byte-identical vendored copies** of the
+  gossamer sources, pinned to an upstream commit in `proofs/VENDOR.json`. The
+  `vendor-integrity` CI job diffs them against that pin — edit them upstream,
+  never here.
+* The module names stay `Gossamer.ABI.*` **deliberately**: the cross-repo proof
+  agreement check compares theorem surfaces by module name; a rename would break
+  comparability. The `Groove.*` rename is a separate, future decision.
+* The gate is ipkg-based on purpose: idris2 0.7.0 `--check file.idr` exits 0 on
+  module-load errors (measured 2026-07-27), so a per-file loop is a fake gate.
+* `GrooveProxy.idr` is **in the package** (moved from `reference/groove-proxy/`,
+  2026-07-27): its `TypedFrameRouter*` dependencies are vendored byte-identical
+  from `proven-servers` (fixed there in hyperpolymath/proven-servers#57 — the
+  `noReverseTranslation` lemma was TRUE all along; the old proof style plus the
+  lowercase auto-bind trap were the blockers), and `grooveNoReverse` is now
+  proved via the repaired general lemma.
 
-== PROOFS-1 — the decoupling task (open)
+== PROOFS-1 — remaining evolution (open)
 
-The "properly done" re-homing, tracked as *PROOFS-1*:
+The relocation itself is finished. What remains of the original PROOFS-1 vision
+is the *re-founding*, still open:
 
-. Rename modules `Gossamer.ABI.*` → `Groove.*`.
-. Port or supply their dependencies (`Types.idr`, `Groove.idr` equivalents) against
-  the v0.2 manifest data model in `SPEC.adoc`, not the gossamer ABI.
-. Add a `groove-proofs.ipkg` that builds them here.
-. Flip `proofs.yml` from allow-fail to required once green.
+. Rename modules `Gossamer.ABI.*` → `Groove.*` — only together with the
+  cross-repo agreement-check design, since it breaks name-based comparability.
+. Re-state the proofs against the v0.2 manifest data model in `SPEC.adoc`
+  instead of the vendored gossamer ABI (a semantic re-founding, not a port).
 
 Do the rename only under the CI job that can check it — a textual rename with no
 typechecker is churn, not progress.
@@ -60,6 +74,10 @@ gossamer, blocked on a green native build there.
 
 * Source: `hyperpolymath/gossamer`, branch `restore/honest-abi-decouple-groove`,
   baseline tag `pre-honest-abi-2026-06-16`.
-* After removal, gossamer's `gossamer-abi.ipkg` (10 modules) typechecks clean.
+* CORRECTION (2026-07-27): the prior claim here that gossamer's ipkg "typechecks
+  clean after removal" was false — gossamer's ipkgs kept declaring the relocated
+  modules, and its main went red when the files were deleted (gossamer commit
+  `9a63dd6`, 2026-07-26). Fixed by pruning the ipkgs to the 15 in-repo modules
+  (gossamer#134, the counterpart of the PR that wired this package).
 * Per estate policy these are *relocated, never deleted* (cold foundational work is
   not disposable). Do not prune.

@@ -146,3 +146,8 @@ The Groove Proxy is one instance. The general Typed Frame Router supports:
 | **Avow LAN** | Raw frames → validated frames (network-level integrity)
 | **InfiniBand Proxy** | IB → IPv6 (HPC to standard networking)
 |===
+
+
+NOTE: `GrooveProxy.idr` moved to `proofs/GrooveProxy.idr` (2026-07-27) and is
+now typechecked by `groove-proofs.ipkg` in the `proofs` CI gate, with its
+`TypedFrameRouter*` dependencies vendored under `proofs/` (see `proofs/VENDOR.json`).
