@@ -1,12 +1,30 @@
 # SPDX-License-Identifier: MPL-2.0
-# Idris2 proof typecheck — permanently allow-fail until PROOFS-1 (decoupling
-# the relocated gossamer modules) is done; see proofs/README.adoc. This job is
-# where the Gossamer.ABI.* -> Groove.* rename gets verified; do not rename
-# without it.
+# Idris2 proof gate — REAL as of PROOFS-1 completion (owner ruling 2026-07-27:
+# finish the relocation). Typechecks groove-proofs.ipkg: the three relocated
+# proof modules plus byte-identical vendored Gossamer.ABI.{Types,Groove} deps
+# (proofs/VENDOR.json), whose integrity against the pinned upstream commit is
+# verified by the vendor-integrity job.
+#
+# ipkg-based `--typecheck` is load-bearing: idris2 0.7.0 `--check file.idr`
+# exits 0 on module-load errors (measured 2026-07-27), so a per-file loop is a
+# fake gate. Do NOT reintroduce `continue-on-error` and do NOT switch back to
+# per-file `--check`.
 name: proofs
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ['**']
+    paths:
+      - 'proofs/**'
+      - 'groove-proofs.ipkg'
+      - '.github/workflows/proofs.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'proofs/**'
+      - 'groove-proofs.ipkg'
+      - '.github/workflows/proofs.yml'
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday morning
 
@@ -14,25 +32,46 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: proofs-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  typecheck:
-    name: idris2 typecheck (allow-fail until PROOFS-1)
+  vendor-integrity:
+    name: vendored deps match pinned upstream
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - name: install idris2
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y idris2 || {
-            echo "apt idris2 unavailable — trying pack bootstrap is out of scope; failing soft"
-            exit 1
-          }
-      - name: typecheck proofs
+      - name: diff vendored files against their pinned source commit
         run: |
           set -euo pipefail
-          cd proofs
-          for f in *.idr; do
-            echo "== $f"
-            idris2 --check "$f"
+          jq -c '.entries[]' proofs/VENDOR.json | while read -r e; do
+            file=$(jq -r '.file' <<<"$e")
+            repo=$(jq -r '.source_repo' <<<"$e")
+            ref=$(jq -r '.source_ref' <<<"$e")
+            path=$(jq -r '.source_path' <<<"$e")
+            echo "== $file  <-  $repo@$ref:$path"
+            curl -fsSL "https://raw.githubusercontent.com/$repo/$ref/$path" -o /tmp/upstream.idr
+            diff -u /tmp/upstream.idr "$file"
           done
+          echo "vendored files are byte-identical to their pinned upstream"
+
+  typecheck:
+    name: idris2 typecheck (groove-proofs.ipkg)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - name: Install Chez Scheme
+        run: sudo apt-get update && sudo apt-get install -y chezscheme
+      - name: Build & install Idris2 (pinned v0.8.0, gossamer's proven recipe)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v0.8.0 https://github.com/idris-lang/Idris2.git "$RUNNER_TEMP/Idris2"
+          cd "$RUNNER_TEMP/Idris2"
+          make bootstrap SCHEME=chezscheme
+          make install
+          echo "$HOME/.idris2/bin" >> "$GITHUB_PATH"
+      - name: Typecheck the proofs package
+        run: idris2 --typecheck groove-proofs.ipkg

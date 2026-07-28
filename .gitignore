@@ -1,3 +1,6 @@
 
 # Rust build artifacts (workspace: cli + provider)
 /target/
+
+# Idris2 build artifacts (groove-proofs.ipkg)
+build/
