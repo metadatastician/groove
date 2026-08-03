@@ -19,8 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - uses: dtolnay/rust-toolchain@77011b6065363453e991777897939c35b0758994 # stable
-      - uses: Swatinem/rust-cache@256b378d862903612d95a6e817f9252c79067889 # v2
+      # SHA-pinned: dtolnay resolves the toolchain from the ref name, so a SHA
+      # pin needs an explicit `toolchain:` or it fails with "invalid toolchain
+      # name ''".
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo build --workspace
       - run: cargo test --workspace
 
@@ -29,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - uses: actions/setup-node@0a4a298c106270599640615695ea461254255428 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: node clients/browser-extension/scripts/gen-targets.mjs --check
@@ -39,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - uses: actions/setup-node@0a4a298c106270599640615695ea461254255428 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: npx --yes web-ext lint --source-dir clients/browser-extension
@@ -59,7 +64,7 @@ jobs:
       # std.time.nanoTimestamp — both removed by zig 0.16's std.Io networking
       # rework. Migrating reference/ipv6t to the 0.16 Io API is a tracked
       # follow-up; until then, build against 0.14.x as authored.
-      - uses: mlugg/setup-zig@d8b3ca428837f902043b1448c423426027e3c004 # v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.14.1
       - run: zig build test
