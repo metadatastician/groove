@@ -95,6 +95,8 @@ jobs:
           echo "cli version: $v"
           grep -q "$v" spec/SPEC.adoc || { echo "SPEC.adoc does not mention $v"; exit 1; }
           grep -q "$v" README.adoc || { echo "README.adoc does not mention $v"; exit 1; }
+      - name: Bebop voice_signal alignment conformance (spline ADR-0005 criterion (c))
+        run: node scripts/check-bebop-alignment.mjs
       - name: no stray license references outside LICENSES/ and ADRs
         run: |
           set -euo pipefail
