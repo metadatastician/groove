@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# Gitleaks configuration — estate baseline, adapted for groove.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The standards secret-scanner reusable runs `gitleaks detect --source .`
+# with no `--config`; gitleaks auto-discovers `.gitleaks.toml` from that
+# source, i.e. from THIS repo. Without a baseline, a real (`--exit-code 1`,
+# non-`continue-on-error`) run trips on Cargo.lock integrity hashes and
+# similar shapes that are not secrets — see enaction-engine's
+# `.gitleaks.toml`, which this is adapted from (same baseline regexes; the
+# `paths` allowlist is trimmed to the lockfile this repo actually has).
+#
+# DESIGN RULE — KEEP THIS WHEN EDITING
+# ------------------------------------
+# Allowlist by PATTERN CLASS, anchored to the WHOLE value. Never allowlist a
+# path wholesale because "that file is fine", and never disable a rule. Every
+# `regexes` entry below is anchored `^...$` on purpose — an unanchored entry
+# is a substring match, which silently blinds the scanner. If you add a
+# pattern here, plant a realistic secret and confirm it is still detected
+# before you commit.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Estate baseline: dependency metadata, anchored placeholder shapes, published test vectors"
+
+paths = [
+  # Lockfile: the "secrets" are content hashes of public registry packages.
+  # A lockfile has no legitimate reason to contain a credential.
+  '''(^|/)Cargo\.lock$''',
+]
+
+regexes = [
+  # --- documented placeholder shapes (all anchored to the whole value) ------
+
+  # Ellipsis-terminated illustrative values: `abc123def456...`. A real
+  # credential is never elided.
+  '''^[A-Za-z0-9_\-]{4,}\.\.\.$''',
+
+  # Repeated-character masks: a provider prefix followed by a long run of a
+  # single filler character, as commonly used to mask tokens in docs. A real
+  # credential never repeats one character 8+ times.
+  '''^[A-Za-z0-9_\-]*?(x{8,}|X{8,}|y{8,}|z{8,}|0{12,}|\*{6,})[A-Za-z0-9_\-]*$''',
+
+  # Monotonic hex walks used as filler, e.g. `0123456789abcdef` repeated,
+  # `deadbeef`/`cafebabe`. Keyboard-walk fillers, never generated key material.
+  '''^(?i:0123456789abcdef|abcdef0123456789|deadbeef|cafebabe)+$''',
+
+  # Snake-case self-labelled fixtures, e.g. `sg_test_api_key_abc123`. Anchored
+  # and shape-constrained: real API keys carry mixed case, digits and symbols
+  # and will not match this.
+  '''^[a-z]{2,6}_(test|demo|fake|sample|example|dummy|placeholder)_[a-z0-9_]{2,40}$''',
+
+  # --- public-by-definition / non-secret identifiers ------------------------
+  # OpenPGP 40-hex fingerprints. A fingerprint *identifies* a key; it is
+  # published deliberately and discloses nothing. Secret key *material* is
+  # PEM-armoured and is caught by the dedicated private-key rules, which are
+  # NOT allowlisted here.
+  '''^[A-F0-9]{40}$''',
+
+  # Cryptographic *type names* appearing in source/design docs, e.g. a
+  # struct or trait named `Ed25519KeyPair`. A bare CamelCase identifier with
+  # no digits or separators is a type, not a key.
+  '''^(Ed25519|X25519|Curve25519|RSA|ECDSA|EdDSA|Secp256k1)[A-Za-z]*$'''
+]
