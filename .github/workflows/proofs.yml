@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # Idris2 proof gate — REAL as of PROOFS-1 completion (owner ruling 2026-07-27:
 # finish the relocation). Typechecks groove-proofs.ipkg: the three relocated
@@ -42,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@v7.0.1
       - name: diff vendored files against their pinned source commit
         run: |
           set -euo pipefail
@@ -62,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@v7.0.1
       - name: Install Chez Scheme
         run: sudo apt-get update && sudo apt-get install -y chezscheme
       - name: Build & install Idris2 (pinned v0.8.0, gossamer's proven recipe)

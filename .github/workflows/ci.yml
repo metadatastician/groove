@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # Groove protocol CI — small real matrix (ADR 0008): every job exercises an
 # actual artifact. The registry file is the single source of truth (ADR 0006);
@@ -18,14 +19,14 @@ jobs:
     name: build + test (workspace incl. conformance suite)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@v7.0.1
       # SHA-pinned: dtolnay resolves the toolchain from the ref name, so a SHA
       # pin needs an explicit `toolchain:` or it fails with "invalid toolchain
       # name ''".
-      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@v2.9.1
       - run: cargo build --workspace
       - run: cargo test --workspace
 
@@ -33,8 +34,8 @@ jobs:
     name: generated port tables match registry
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
       - run: node clients/browser-extension/scripts/gen-targets.mjs --check
@@ -43,8 +44,8 @@ jobs:
     name: browser extension lint + structure + unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
       - run: npx --yes web-ext lint --source-dir clients/browser-extension
@@ -58,13 +59,13 @@ jobs:
     # promote to required once this job passes, then it gates all grv6 changes.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@v7.0.1
       # Pin the zig version the reference targets. The code uses std.net
       # (Address.parseIp6 / addr.listen / server.accept) and
       # std.time.nanoTimestamp — both removed by zig 0.16's std.Io networking
       # rework. Migrating reference/ipv6t to the 0.16 Io API is a tracked
       # follow-up; until then, build against 0.14.x as authored.
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+      - uses: mlugg/setup-zig@v2.2.1
         with:
           version: 0.14.1
       - run: zig build test
@@ -74,7 +75,7 @@ jobs:
     name: spec/conformance/version coherence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@v7.0.1
       - name: every CONF ID in CONFORMANCE.adoc has a matching test
         run: |
           set -euo pipefail
