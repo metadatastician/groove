@@ -10,6 +10,12 @@
 # Denote all Markdown files as text
 *.md text
 
+# Denote all AsciiDoc files as text (the repo's primary spec/decision format)
+*.adoc text
+
+# Denote all LaTeX files as text (docs/*.tex)
+*.tex text
+
 # Denote all YAML files as text
 *.yaml text
 *.yml text
@@ -57,6 +63,8 @@
 *.sh eol=lf
 *.py eol=lf
 *.md eol=lf
+*.adoc eol=lf
+*.tex eol=lf
 *.yaml eol=lf
 *.yml eol=lf
 *.json eol=lf
