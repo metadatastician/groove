@@ -97,6 +97,8 @@ jobs:
           grep -q "$v" README.adoc || { echo "README.adoc does not mention $v"; exit 1; }
       - name: Bebop voice_signal alignment conformance (spline ADR-0005 criterion (c))
         run: node scripts/check-bebop-alignment.mjs
+      - name: Bebop alignment checker self-test (falsifiability proof)
+        run: node scripts/check-bebop-alignment.test.mjs
       - name: no stray license references outside LICENSES/ and ADRs
         run: |
           set -euo pipefail
