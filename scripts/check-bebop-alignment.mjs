@@ -20,7 +20,7 @@
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -148,7 +148,15 @@ function runAll(alignment, fixturesText) {
 }
 
 // Only run as a CLI check when executed directly (not when imported by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
+//
+// Compared via pathToFileURL rather than a hand-built `file://${path}`
+// template: import.meta.url is percent-encoded by Node (e.g. spaces become
+// %20), while process.argv[1] is a raw filesystem path, so the two would
+// silently fail to match on a checkout path containing spaces or other
+// URL-special characters. That would make this whole conformance block
+// exit 0 without running a single check -- exactly the fake-gate failure
+// mode this script exists to close (gitar review on #31).
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const alignment = JSON.parse(
     readFileSync(join(root, "registry", "bebop-voice-signal-alignment.json"), "utf8"),
   );
