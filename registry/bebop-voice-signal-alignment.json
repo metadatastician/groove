@@ -1,0 +1,36 @@
+{
+  "$comment": "Alignment record for burble's Bebop VoiceSignal plane (spline ADR-0005 criterion (c)). SSOT pattern: this file is the machine-readable half of spline's alignment doc (spline docs/alignment/voice-signal-plane.adoc); scripts/check-bebop-alignment.mjs validates recorded frames against it in CI. Schema ownership: burble owns server/priv/schemas/voice_signal.bop (spline ADR-0003) — this file records the MAPPING, it is not a schema copy.",
+  "plane": "voice_signal",
+  "schema_owner": "metadatastician/burble server/priv/schemas/voice_signal.bop",
+  "consumers": {
+    "encoder": "burble Burble.Protocol.VoiceSignal (mix bebop.generate output)",
+    "decoder": "gossamer src/interface/ffi/src/bebop_voice_signal.zig"
+  },
+  "wire": {
+    "endianness": "little",
+    "string": "u32 length prefix + UTF-8 bytes",
+    "bool": "1 byte, strictly 0 or 1",
+    "enum": "1 byte (uint8-backed)",
+    "union": "1-byte discriminator tag then variant payload"
+  },
+  "field_kinds_note": "vec3 = 3 x f32-LE; sdp_payload = string,string; ice_candidate_payload = string,u16,string,string; leave_reason = 1-byte enum whose decoded value MUST be a key of cross_plane.leave_reason.values (checker validates this against the registry, not just bounds)",
+  "variants": {
+    "1": { "name": "join", "fields": ["string", "string", "string", "enum", "bool", "vec3"] },
+    "2": { "name": "leave", "fields": ["string", "string", "leave_reason"] },
+    "3": { "name": "mute", "fields": ["string", "string", "enum"] },
+    "4": { "name": "unmute", "fields": ["string", "string"] },
+    "5": { "name": "deafen", "fields": ["string", "string", "enum"] },
+    "6": { "name": "speaking_start", "fields": ["string", "string", "f32"] },
+    "7": { "name": "speaking_stop", "fields": ["string", "string"] },
+    "8": { "name": "position_update", "fields": ["string", "string", "vec3", "f32"] },
+    "9": { "name": "offer", "fields": ["string", "string", "sdp_payload"] },
+    "10": { "name": "answer", "fields": ["string", "string", "sdp_payload"] },
+    "11": { "name": "ice_candidate", "fields": ["string", "string", "ice_candidate_payload"] }
+  },
+  "cross_plane": {
+    "leave_reason": {
+      "note": "voice_signal.LeaveReason MUST stay value-aligned with room_event.LeaveReason (burble owner ruling A3, 2026-08-04)",
+      "values": { "0": "voluntary", "1": "kicked", "2": "banned", "3": "timeout", "4": "server_shutdown" }
+    }
+  }
+}
