@@ -13,10 +13,10 @@
     "enum": "1 byte (uint8-backed)",
     "union": "1-byte discriminator tag then variant payload"
   },
-  "field_kinds_note": "vec3 = 3 x f32-LE; sdp_payload = string,string; ice_candidate_payload = string,u16,string,string",
+  "field_kinds_note": "vec3 = 3 x f32-LE; sdp_payload = string,string; ice_candidate_payload = string,u16,string,string; leave_reason = 1-byte enum whose decoded value MUST be a key of cross_plane.leave_reason.values (checker validates this against the registry, not just bounds)",
   "variants": {
     "1": { "name": "join", "fields": ["string", "string", "string", "enum", "bool", "vec3"] },
-    "2": { "name": "leave", "fields": ["string", "string", "enum"] },
+    "2": { "name": "leave", "fields": ["string", "string", "leave_reason"] },
     "3": { "name": "mute", "fields": ["string", "string", "enum"] },
     "4": { "name": "unmute", "fields": ["string", "string"] },
     "5": { "name": "deafen", "fields": ["string", "string", "enum"] },
