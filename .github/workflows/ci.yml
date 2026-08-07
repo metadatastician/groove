@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
 # Groove protocol CI — small real matrix (ADR 0008): every job exercises an
@@ -20,10 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      # SHA-pinned: dtolnay resolves the toolchain from the ref name, so a SHA
-      # pin needs an explicit `toolchain:` or it fails with "invalid toolchain
-      # name ''".
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to the v1 TAG, not the `stable` BRANCH. dtolnay force-moves
+      # `stable` on each Rust release, so a lockfile pin to it stops being
+      # reachable from the branch and enforcement rejects the job with
+      # "Lockfile pin ... does not match ref `stable`" — measured here on
+      # 2026-08-07. The ref selects the ACTION version only; the toolchain
+      # comes from the explicit input below (dtolnay otherwise reads the
+      # toolchain from the ref name).
+      - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@v2.9.1
