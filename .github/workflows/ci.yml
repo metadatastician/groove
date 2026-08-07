@@ -1,5 +1,5 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
+# This workflow is managed by gh actions-lock.
 # Groove protocol CI — small real matrix (ADR 0008): every job exercises an
 # actual artifact. The registry file is the single source of truth (ADR 0006);
 # drift anywhere fails the build.

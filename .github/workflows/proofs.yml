@@ -1,5 +1,5 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
+# This workflow is managed by gh actions-lock.
 # Idris2 proof gate — REAL as of PROOFS-1 completion (owner ruling 2026-07-27:
 # finish the relocation). Typechecks groove-proofs.ipkg: the three relocated
 # proof modules plus byte-identical vendored Gossamer.ABI.{Types,Groove} deps

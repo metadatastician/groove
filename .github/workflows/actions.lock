@@ -5,53 +5,55 @@ version: 'v0.0.2'
 workflows:
     '.github/workflows/ci.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/setup-node@v4.4.0'
+        - 'actions/setup-node@v7.0.0'
         - 'dtolnay/rust-toolchain@stable'
         - 'mlugg/setup-zig@v2.2.1'
         - 'swatinem/rust-cache@v2.9.1'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.3'
+        - 'github/codeql-action@v4.37.5'
     '.github/workflows/oikosbot.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.3'
+        - 'github/codeql-action@v4.37.5'
         - 'hyperpolymath/oikosbot@v0.1.0'
     '.github/workflows/pages.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/deploy-pages@v4.0.5'
-        - 'actions/upload-pages-artifact@v3.0.1'
+        - 'actions/deploy-pages@v5.0.0'
+        - 'actions/upload-pages-artifact@v5.0.0'
     '.github/workflows/proofs.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/push-email-notify.yml':
         - 'dawidd6/action-send-mail@v3.12.0'
+    '.github/workflows/secret-scanner.yml':
+        - 'hyperpolymath/standards@bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
-    'actions/deploy-pages@v4.0.5':
-        ref: 'v4.0.5'
-        commit: 'sha1-d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e'
+    'actions/deploy-pages@v5.0.0':
+        ref: 'v5.0.0'
+        commit: 'sha1-cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
         owner_id: 44036562
         repo_id: 438112499
-    'actions/setup-node@v4.4.0':
-        ref: 'v4.4.0'
-        commit: 'sha1-49933ea5288caeca8642d1e84afbd3f7d6820020'
+    'actions/setup-node@v7.0.0':
+        ref: 'v7.0.0'
+        commit: 'sha1-820762786026740c76f36085b0efc47a31fe5020'
         owner_id: 44036562
         repo_id: 189476904
-    'actions/upload-artifact@v4':
-        ref: 'v4'
-        commit: 'sha1-ea165f8d65b6e75b540449e92b4886f43607fa02'
+    'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f':
+        ref: 'v7.0.0'
+        commit: 'sha1-bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
         owner_id: 44036562
         repo_id: 192625955
-    'actions/upload-pages-artifact@v3.0.1':
-        ref: 'v3.0.1'
-        commit: 'sha1-56afc609e74202658d3ffba0e8f6dda462b719fa'
+    'actions/upload-pages-artifact@v5.0.0':
+        ref: 'v5.0.0'
+        commit: 'sha1-fc324d3547104276b827a68afc52ff2a11cc49c9'
         owner_id: 44036562
         repo_id: 496012378
         uses:
-            - 'actions/upload-artifact@v4'
+            - 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
     'dawidd6/action-send-mail@v3.12.0':
         ref: 'v3.12.0'
         commit: 'sha1-2cea9617b09d79a095af21254fbcb7ae95903dde'
@@ -62,9 +64,9 @@ dependencies:
         commit: 'sha1-4cda84d5c5c54efe2404f9d843567869ab1699d4'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@v4.37.3':
-        ref: 'v4.37.3'
-        commit: 'sha1-e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81'
+    'github/codeql-action@v4.37.5':
+        ref: 'v4.37.5'
+        commit: 'sha1-d1ba80a13dd99fba24a470575428917156a28b43'
         owner_id: 9919
         repo_id: 259445878
     'hyperpolymath/oikosbot@v0.1.0':
@@ -82,3 +84,10 @@ dependencies:
         commit: 'sha1-c19371144df3bb44fab255c43d04cbc2ab54d1c4'
         owner_id: 580492
         repo_id: 298565987
+    'hyperpolymath/standards@bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4':
+        ref: 'bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
+        commit: 'sha1-bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
+        owner_id: 6759885
+        repo_id: 1116521501
+        uses:
+            - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
