@@ -1,3 +1,26 @@
 
 # Rust build artifacts (workspace: cli + provider)
 /target/
+
+# Idris2 build artifacts (groove-proofs.ipkg)
+build/
+
+# Node dependencies (harness/, clients/js/, clients/browser-extension/)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Agent / local session artifacts (Claude Code worktrees, scratch) — never commit
+.claude/
+
+# Logs
+*.log
