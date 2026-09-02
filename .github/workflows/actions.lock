@@ -11,12 +11,12 @@ workflows:
         - 'swatinem/rust-cache@v2.9.2'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.7'
+        - 'github/codeql-action@v4.37.8'
     '.github/workflows/label-triage.yml': []
     '.github/workflows/labels.yml': []
     '.github/workflows/oikosbot.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.7'
+        - 'github/codeql-action@v4.37.8'
         - 'hyperpolymath/oikosbot@v0.1.1'
     '.github/workflows/pages.yml':
         - 'actions/checkout@v7.0.1'
@@ -25,7 +25,7 @@ workflows:
     '.github/workflows/proofs.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/push-email-notify.yml':
-        - 'dawidd6/action-send-mail@v3.12.0'
+        - 'hyperpolymath/smtp-notify-action@v0.1.0'
     '.github/workflows/secret-scanner.yml':
         - 'hyperpolymath/standards@bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
 dependencies:
@@ -61,19 +61,14 @@ dependencies:
         repo_id: 496012378
         uses:
             - 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
-    'dawidd6/action-send-mail@v3.12.0':
-        ref: 'v3.12.0'
-        commit: 'sha1-94de994a9f6fffee200243214e17002e2920bb59'
-        owner_id: 9713907
-        repo_id: 222439721
     'dtolnay/rust-toolchain@v1':
         ref: 'v1'
         commit: 'sha1-e97e2d8cc328f1b50210efc529dca0028893a2d9'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@v4.37.7':
-        ref: 'v4.37.7'
-        commit: 'sha1-ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd'
+    'github/codeql-action@v4.37.8':
+        ref: 'v4.37.8'
+        commit: 'sha1-db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28'
         owner_id: 9919
         repo_id: 259445878
     'hyperpolymath/oikosbot@v0.1.1':
@@ -81,6 +76,11 @@ dependencies:
         commit: 'sha1-f00dec4597dde6071a7f0fe38414c13b5847f316'
         owner_id: 6759885
         repo_id: 1274526902
+    'hyperpolymath/smtp-notify-action@v0.1.0':
+        ref: 'v0.1.0'
+        commit: 'sha1-1b3b752d39a4fe4c0f28f10905e4608789d3e050'
+        owner_id: 6759885
+        repo_id: 1352485172
     'hyperpolymath/standards@bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4':
         ref: 'bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
         commit: 'sha1-bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
