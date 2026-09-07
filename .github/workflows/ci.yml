@@ -7,6 +7,8 @@
 name: ci
 
 on:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   pull_request:
@@ -19,6 +21,7 @@ jobs:
   rust:
     name: build + test (workspace incl. conformance suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
       # Pinned to the v1 TAG, not the `stable` BRANCH. dtolnay force-moves
@@ -46,6 +49,7 @@ jobs:
   registry-drift:
     name: generated port tables match registry
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
@@ -56,6 +60,7 @@ jobs:
   webext:
     name: browser extension lint + structure + unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
@@ -68,6 +73,7 @@ jobs:
   zig:
     name: GRV6 reference (zig build test)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Verified locally on Zig 0.14.1: all 10 GRV6 tests pass. This is required.
     steps:
       - uses: actions/checkout@v7.0.1
@@ -85,6 +91,7 @@ jobs:
   spec-consistency:
     name: spec/conformance/version coherence
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0

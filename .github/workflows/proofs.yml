@@ -14,23 +14,13 @@
 name: proofs
 
 on:
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
   pull_request:
     branches: ['**']
-    paths:
-      - 'proofs/**'
-      - 'tests/proofs/**'
-      - 'tests/check_proofs.sh'
-      - 'groove-proofs.ipkg'
-      - '.github/workflows/proofs.yml'
   push:
     branches: [main]
-    paths:
-      - 'proofs/**'
-      - 'tests/proofs/**'
-      - 'tests/check_proofs.sh'
-      - 'groove-proofs.ipkg'
-      - '.github/workflows/proofs.yml'
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday morning
 
@@ -75,6 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 --branch v0.8.0 https://github.com/idris-lang/Idris2.git "$RUNNER_TEMP/Idris2"
+          test "$(git -C "$RUNNER_TEMP/Idris2" rev-parse HEAD)" = 15a3e4e70843f7a34100f6470c04b791330788df
           cd "$RUNNER_TEMP/Idris2"
           make bootstrap SCHEME=chezscheme
           make install

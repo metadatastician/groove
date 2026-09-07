@@ -12,6 +12,9 @@ workflows:
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
         - 'github/codeql-action@v4.37.9'
+    '.github/workflows/dependency-audit.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'dtolnay/rust-toolchain@v1'
     '.github/workflows/label-triage.yml': []
     '.github/workflows/labels.yml': []
     '.github/workflows/oikosbot.yml':
@@ -28,6 +31,8 @@ workflows:
         - 'hyperpolymath/smtp-notify-action@v0.1.0'
     '.github/workflows/secret-scanner.yml':
         - 'hyperpolymath/standards@bd0df9ead7faf0cdfe0e13e7966d91e28d0101d4'
+    '.github/workflows/workflow-safety.yml':
+        - 'actions/checkout@v7.0.1'
 dependencies:
     'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1':
         ref: 'v7.0.1'
