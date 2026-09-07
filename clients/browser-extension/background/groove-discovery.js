@@ -30,21 +30,42 @@ let grooveRegistry = new Map();
 
 // Live connections: serviceName -> { handle, baseUrl, misses, timer }.
 const connections = new Map();
+const connecting = new Map();
 
 // ============================================================================
 // Probing (pure-ish core; fetchImpl injectable for tests)
 // ============================================================================
 
 /**
- * Fetch with timeout via AbortController.
+ * Bound both headers and body by the same deadline and a 64 KiB body limit.
  */
 async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, { ...options, signal: controller.signal });
+    const response = await fetchImpl(url, { ...options, signal: controller.signal });
+    const chunks = [];
+    let size = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 65536) throw new Error("Groove response exceeds 64 KiB");
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    return new Response(size ? new Blob(chunks) : null, {
+      status: response.status, statusText: response.statusText, headers: response.headers,
+    });
   } finally {
     clearTimeout(timeoutId);
+    controller.abort();
   }
 }
 
@@ -153,6 +174,7 @@ function consumerManifest() {
     mode: "passive",
     capabilities: {},
     consumes: [],
+    lease: { mode: "hard", ttl_ms: 15000 },
   };
 }
 
@@ -161,6 +183,14 @@ function consumerManifest() {
  * @returns {Promise<{ok: boolean, handle?: string, error?: string, reasons?: string[]}>}
  */
 async function connectService(serviceName, fetchImpl = fetch) {
+  if (connecting.has(serviceName)) return connecting.get(serviceName);
+  const pending = connectServiceOnce(serviceName, fetchImpl)
+    .finally(() => connecting.delete(serviceName));
+  connecting.set(serviceName, pending);
+  return pending;
+}
+
+async function connectServiceOnce(serviceName, fetchImpl) {
   const entry = grooveRegistry.get(serviceName);
   if (!entry || entry.status === "not_found") {
     return { ok: false, error: `${serviceName} not discovered` };
@@ -184,15 +214,23 @@ async function connectService(serviceName, fetchImpl = fetch) {
     if (response.status === 409) {
       return { ok: false, error: "incompatible", reasons: body.reasons || [] };
     }
-    if (!response.ok || !body.handle) {
+    if (!response.ok || typeof body.handle !== "string" || !body.handle) {
       return { ok: false, error: `connect failed (${response.status})` };
+    }
+    if (body.lease?.mode !== "hard" || body.lease?.ttl_ms !== 15000) {
+      // Do not claim a renewable session if the provider omitted the lease.
+      await fetchWithTimeout(fetchImpl, `${entry.baseUrl}/.well-known/groove/disconnect`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: body.handle }),
+      }, PROBE_TIMEOUT_MS);
+      return { ok: false, error: "provider did not accept the requested hard lease" };
     }
 
     const conn = { handle: body.handle, baseUrl: entry.baseUrl, misses: 0, timer: null };
     conn.timer = setInterval(() => heartbeat(serviceName, fetchImpl), HEARTBEAT_INTERVAL_MS);
     connections.set(serviceName, conn);
     entry.status = "connected";
-    console.log(`Groove: connected to ${serviceName} (${body.handle})`);
+    console.log(`Groove: connected to ${serviceName}`);
     return { ok: true, handle: body.handle };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -209,7 +247,7 @@ async function heartbeat(serviceName, fetchImpl = fetch) {
   try {
     const response = await fetchWithTimeout(
       fetchImpl,
-      `${conn.baseUrl}/.well-known/groove/heartbeat`,
+      `${conn.baseUrl}/.well-known/groove/heartbeat?handle=${encodeURIComponent(conn.handle)}`,
       { method: "GET" },
       PROBE_TIMEOUT_MS
     );
@@ -218,6 +256,7 @@ async function heartbeat(serviceName, fetchImpl = fetch) {
     alive = false;
   }
 
+  if (connections.get(serviceName) !== conn) return;
   if (alive) {
     conn.misses = 0;
     if (entry) entry.status = "connected";
@@ -239,6 +278,7 @@ async function heartbeat(serviceName, fetchImpl = fetch) {
  * Disconnect (POST disconnect; the handle is linearly consumed server-side).
  */
 async function disconnectService(serviceName, fetchImpl = fetch) {
+  if (connecting.has(serviceName)) await connecting.get(serviceName);
   const conn = connections.get(serviceName);
   if (!conn) return { ok: false, error: `${serviceName} not connected` };
 

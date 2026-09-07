@@ -4,6 +4,8 @@
 name: OikosBot Sustainability Analysis
 
 on:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   pull_request:

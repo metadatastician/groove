@@ -7,11 +7,11 @@
 
 use std::time::{Duration, Instant};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use groove_provider::{serve, Config, Server};
+use groove_provider::{Config, Server, serve};
 
 async fn start() -> Server {
     serve(Config {
@@ -95,7 +95,8 @@ async fn conf_l1_01() {
     let (status, head, _) = get(&s, "/.well-known/groove", "*/*").await;
     assert_eq!(status, 200);
     assert!(
-        head.to_ascii_lowercase().contains("content-type: application/groove+json"),
+        head.to_ascii_lowercase()
+            .contains("content-type: application/groove+json"),
         "default content type must be application/groove+json, got:\n{head}"
     );
 }
@@ -109,7 +110,10 @@ async fn conf_l1_02() {
     assert!(m["service_id"].is_string());
     assert!(m["service_version"].is_string());
     assert!(m["mode"].is_string());
-    assert!(m["capabilities"].is_object(), "capabilities is an object (map)");
+    assert!(
+        m["capabilities"].is_object(),
+        "capabilities is an object (map)"
+    );
 }
 
 #[tokio::test]
@@ -132,8 +136,14 @@ async fn conf_l1_04() {
 
     let (status, head, body) = get(&s, "/.well-known/groove", "application/groove+a2ml").await;
     assert_eq!(status, 200);
-    assert!(head.to_ascii_lowercase().contains("application/groove+a2ml"));
-    assert!(body.trim_start().starts_with("@groove-manifest"), "A2ML body: {body}");
+    assert!(
+        head.to_ascii_lowercase()
+            .contains("application/groove+a2ml")
+    );
+    assert!(
+        body.trim_start().starts_with("@groove-manifest"),
+        "A2ML body: {body}"
+    );
 
     // Unknown Accept still gets a parseable JSON manifest (bare-by-default).
     let (status, _, body) = get(&s, "/.well-known/groove", "text/weird").await;
@@ -148,8 +158,12 @@ async fn conf_l1_04() {
 async fn conf_l2_01() {
     let s = start().await;
     // groove-ref offers "attestation"; consuming it is structurally compatible.
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &consumer(&["attestation"])).await;
+    let (status, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &consumer(&["attestation"]),
+    )
+    .await;
     assert_eq!(status, 200, "{body}");
     let v: Value = serde_json::from_str(&body).expect("JSON body");
     assert!(v["handle"].is_string(), "connect returns a handle: {body}");
@@ -158,8 +172,7 @@ async fn conf_l2_01() {
 #[tokio::test]
 async fn conf_l2_02() {
     let s = start().await;
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &consumer(&["voice"])).await;
+    let (status, _, body) = post(&s, "/.well-known/groove/connect", &consumer(&["voice"])).await;
     assert_eq!(status, 409, "incompatible connect must 409: {body}");
     let v: Value = serde_json::from_str(&body).expect("JSON body");
     assert!(
@@ -190,23 +203,42 @@ async fn conf_l2_04() {
     let s = start().await;
     let handle = connect_ok(&s).await;
 
-    let (status, _, _) =
-        post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    let (status, _, _) = post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
     assert_eq!(status, 200, "first disconnect succeeds");
 
-    let (status, _, _) =
-        post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
-    assert_eq!(status, 410, "handle is linear: second disconnect gets 410 Gone");
+    let (status, _, _) = post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
+    assert_eq!(
+        status, 410,
+        "handle is linear: second disconnect gets 410 Gone"
+    );
 }
 
 #[tokio::test]
 async fn conf_l2_05() {
     let s = start().await;
     let handle = connect_ok(&s).await;
-    post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
 
     let (status, _, body) = get(&s, "/.well-known/groove", "application/groove+json").await;
-    assert_eq!(status, 200, "provider keeps functioning bare after disconnect");
+    assert_eq!(
+        status, 200,
+        "provider keeps functioning bare after disconnect"
+    );
     let m: Value = serde_json::from_str(&body).expect("manifest still parses");
     assert_eq!(m["groove_version"], "1");
 }
@@ -251,25 +283,43 @@ async fn attestation_events(s: &Server) -> Vec<Value> {
 #[tokio::test]
 async fn conf_l2_08() {
     let s = start().await;
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("soft", 60_000)).await;
+    let (status, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("soft", 60_000),
+    )
+    .await;
     assert_eq!(status, 200, "{body}");
     let v: Value = serde_json::from_str(&body).expect("JSON body");
-    assert!(v["handle"].is_string(), "leased connect returns a handle: {body}");
-    assert_eq!(v["lease"]["mode"], "soft", "accepted lease is echoed: {body}");
+    assert!(
+        v["handle"].is_string(),
+        "leased connect returns a handle: {body}"
+    );
+    assert_eq!(
+        v["lease"]["mode"], "soft",
+        "accepted lease is echoed: {body}"
+    );
     assert_eq!(v["lease"]["ttl_ms"], 60_000);
 
     // A malformed lease is rejected, not silently ignored.
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("squishy", 1000)).await;
+    let (status, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("squishy", 1000),
+    )
+    .await;
     assert_eq!(status, 400, "unknown lease mode must 400: {body}");
 }
 
 #[tokio::test]
 async fn conf_l2_09() {
     let s = start().await;
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("soft", 200)).await;
+    let (status, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("soft", 200),
+    )
+    .await;
     assert_eq!(status, 200, "{body}");
     let handle = serde_json::from_str::<Value>(&body).expect("JSON")["handle"]
         .as_str()
@@ -277,14 +327,22 @@ async fn conf_l2_09() {
         .to_string();
 
     // A soft lease's refresh is refused: soft MUST be allowed to expire.
-    let (status, _, body) =
-        get(&s, &format!("/.well-known/groove/heartbeat?handle={handle}"), "*/*").await;
+    let (status, _, body) = get(
+        &s,
+        &format!("/.well-known/groove/heartbeat?handle={handle}"),
+        "*/*",
+    )
+    .await;
     assert_eq!(status, 409, "soft refresh must be refused: {body}");
 
     // Past TTL (plus sweep slack) the handle is expired: linear 410.
     tokio::time::sleep(Duration::from_millis(450)).await;
-    let (status, _, _) =
-        post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    let (status, _, _) = post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
     assert_eq!(status, 410, "expired soft handle answers 410 Gone");
 
     // The expiry is attested as a zero-residue wipe.
@@ -293,15 +351,22 @@ async fn conf_l2_09() {
         .iter()
         .find(|r| r["event"] == "groove:lease-expired")
         .unwrap_or_else(|| panic!("no lease-expired attestation in {records:?}"));
-    assert_eq!(expiry["residue"], 0, "expiry must attest residue 0: {expiry}");
+    assert_eq!(
+        expiry["residue"], 0,
+        "expiry must attest residue 0: {expiry}"
+    );
     assert_eq!(expiry["lease"]["mode"], "soft");
 }
 
 #[tokio::test]
 async fn conf_l2_10() {
     let s = start().await;
-    let (status, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("hard", 200)).await;
+    let (status, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("hard", 200),
+    )
+    .await;
     assert_eq!(status, 200, "{body}");
     let handle = serde_json::from_str::<Value>(&body).expect("JSON")["handle"]
         .as_str()
@@ -312,22 +377,37 @@ async fn conf_l2_10() {
     // being renewed is never reaped.
     for _ in 0..7 {
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let (status, _, body) =
-            get(&s, &format!("/.well-known/groove/heartbeat?handle={handle}"), "*/*").await;
+        let (status, _, body) = get(
+            &s,
+            &format!("/.well-known/groove/heartbeat?handle={handle}"),
+            "*/*",
+        )
+        .await;
         assert_eq!(status, 204, "hard heartbeat refreshes: {body}");
     }
 
     // Still connected: graceful disconnect succeeds.
-    let (status, _, _) =
-        post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
-    assert_eq!(status, 200, "hard lease survived ≥3 TTL windows of heartbeats");
+    let (status, _, _) = post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
+    assert_eq!(
+        status, 200,
+        "hard lease survived ≥3 TTL windows of heartbeats"
+    );
 }
 
 #[tokio::test]
 async fn conf_l2_11() {
     let s = start().await;
-    let (_, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("hard", 100)).await;
+    let (_, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("hard", 100),
+    )
+    .await;
     let handle = serde_json::from_str::<Value>(&body).expect("JSON")["handle"]
         .as_str()
         .expect("handle")
@@ -335,13 +415,21 @@ async fn conf_l2_11() {
 
     // Within the grace windows the hard lease survives unheartbeaten...
     tokio::time::sleep(Duration::from_millis(150)).await;
-    assert_eq!(s.handle_count(), 1, "hard lease degrades only after 3 whole missed windows");
+    assert_eq!(
+        s.handle_count(),
+        1,
+        "hard lease degrades only after 3 whole missed windows"
+    );
 
     // ...after three whole missed TTL windows it degrades through the
     // soft-expiry path.
     tokio::time::sleep(Duration::from_millis(300)).await;
-    let (status, _, _) =
-        post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    let (status, _, _) = post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
     assert_eq!(status, 410, "degraded hard handle answers 410 Gone");
 
     let records = attestation_events(&s).await;
@@ -359,17 +447,29 @@ async fn conf_l2_12() {
 
     // connect (attested) → expiry (attested) → connect → disconnect
     // (attested): the chain must stay unbroken across lease events.
-    let (_, _, body) =
-        post(&s, "/.well-known/groove/connect", &leased_consumer("soft", 150)).await;
+    let (_, _, body) = post(
+        &s,
+        "/.well-known/groove/connect",
+        &leased_consumer("soft", 150),
+    )
+    .await;
     let _expired_handle = serde_json::from_str::<Value>(&body).expect("JSON")["handle"].clone();
     tokio::time::sleep(Duration::from_millis(350)).await;
 
     let handle = connect_ok(&s).await;
-    post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
 
     let records = attestation_events(&s).await;
     let events: Vec<&str> = records.iter().filter_map(|r| r["event"].as_str()).collect();
-    assert!(events.contains(&"groove:lease-expired"), "chain carries the expiry: {events:?}");
+    assert!(
+        events.contains(&"groove:lease-expired"),
+        "chain carries the expiry: {events:?}"
+    );
     assert!(events.contains(&"groove:disconnected"));
     assert_eq!(records[0]["prev_hash"], "sha256:genesis");
     for pair in records.windows(2) {
@@ -385,7 +485,12 @@ async fn conf_l2_12() {
 async fn conf_l2_07() {
     let s = start().await;
     let handle = connect_ok(&s).await;
-    post(&s, "/.well-known/groove/disconnect", &json!({ "handle": handle })).await;
+    post(
+        &s,
+        "/.well-known/groove/disconnect",
+        &json!({ "handle": handle }),
+    )
+    .await;
 
     let (status, _, body) = get(&s, "/.well-known/groove/attestations", "application/json").await;
     assert_eq!(status, 200);
@@ -397,7 +502,14 @@ async fn conf_l2_07() {
     assert!(events.contains(&"groove:disconnected"));
 
     for r in &records {
-        for field in ["event", "provider", "consumer", "timestamp", "hash", "prev_hash"] {
+        for field in [
+            "event",
+            "provider",
+            "consumer",
+            "timestamp",
+            "hash",
+            "prev_hash",
+        ] {
             assert!(!r[field].is_null(), "record missing {field}: {r}");
         }
     }

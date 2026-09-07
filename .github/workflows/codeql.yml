@@ -3,6 +3,8 @@
 # This workflow is managed by gh actions-lock.
 name: CodeQL Security Analysis
 on:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main, master]
   pull_request:
@@ -19,7 +21,7 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: read
@@ -28,12 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Default to `actions` — scaffolded repos rarely have JS/TS
-          # source; `javascript-typescript` produced "no source files"
-          # failures on every CodeQL run. The `actions` extractor scans
-          # workflow files which every repo has. Override per-repo if
-          # the scaffolded project actually contains JS/TS code.
-          # Per hypatia rule `codeql_language_matrix_mismatch`.
+          - language: rust
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
           - language: actions
             build-mode: none
     steps:

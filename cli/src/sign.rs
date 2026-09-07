@@ -9,11 +9,11 @@
 // mismatching or missing signature is a hard failure — the capability-
 // spoofing countermeasure of cleave PROOF-NEEDS G-5/O-8.
 
-use anyhow::{anyhow, bail, Context, Result};
-use base64::engine::general_purpose::STANDARD as B64;
+use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as B64;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::canonical::canonical_json;
 use crate::timefmt::rfc3339_now;
@@ -33,7 +33,9 @@ pub enum VerifyOutcome {
 
 /// Decode a base64 32-byte Ed25519 seed (e.g. from GROOVE_SIGNING_KEY).
 pub fn decode_seed(b64: &str) -> Result<[u8; 32]> {
-    let bytes = B64.decode(b64.trim()).context("signing seed is not valid base64")?;
+    let bytes = B64
+        .decode(b64.trim())
+        .context("signing seed is not valid base64")?;
     let seed: [u8; 32] = bytes
         .as_slice()
         .try_into()
@@ -55,7 +57,10 @@ pub fn sign_manifest(manifest: &Value, seed: &[u8; 32]) -> Result<Value> {
         bail!("manifest must be a JSON object");
     };
     let mut unsigned = manifest.clone();
-    unsigned.as_object_mut().expect("checked object").remove("signature");
+    unsigned
+        .as_object_mut()
+        .expect("checked object")
+        .remove("signature");
 
     let payload = canonical_json(&unsigned)?;
     let key = SigningKey::from_bytes(seed);
@@ -77,7 +82,10 @@ pub fn sign_manifest(manifest: &Value, seed: &[u8; 32]) -> Result<Value> {
 /// * pinned + key mismatch → error.
 /// * bad signature → error.
 /// * otherwise → the achieved [`VerifyOutcome`].
-pub fn verify_manifest(manifest: &Value, pinned_public_key_b64: Option<&str>) -> Result<VerifyOutcome> {
+pub fn verify_manifest(
+    manifest: &Value,
+    pinned_public_key_b64: Option<&str>,
+) -> Result<VerifyOutcome> {
     let signature = manifest.get("signature");
     let Some(signature) = signature.filter(|s| !s.is_null()) else {
         if pinned_public_key_b64.is_some() {
@@ -96,15 +104,17 @@ pub fn verify_manifest(manifest: &Value, pinned_public_key_b64: Option<&str>) ->
     let key_b64 = signature["public_key"]
         .as_str()
         .ok_or_else(|| anyhow!("signature.public_key missing"))?;
-    let sig_b64 = signature["sig"].as_str().ok_or_else(|| anyhow!("signature.sig missing"))?;
+    let sig_b64 = signature["sig"]
+        .as_str()
+        .ok_or_else(|| anyhow!("signature.sig missing"))?;
 
-    if let Some(pin) = pinned_public_key_b64 {
-        if pin.trim() != key_b64 {
-            bail!(
-                "manifest signature key does not match the registry pin \
+    if let Some(pin) = pinned_public_key_b64
+        && pin.trim() != key_b64
+    {
+        bail!(
+            "manifest signature key does not match the registry pin \
                  (SPEC §2.1.5: treat as failed discovery)"
-            );
-        }
+        );
     }
 
     let key_bytes: [u8; 32] = B64
@@ -121,7 +131,10 @@ pub fn verify_manifest(manifest: &Value, pinned_public_key_b64: Option<&str>) ->
         .map_err(|_| anyhow!("signature.sig must decode to 64 bytes"))?;
 
     let mut unsigned = manifest.clone();
-    unsigned.as_object_mut().ok_or_else(|| anyhow!("manifest must be a JSON object"))?.remove("signature");
+    unsigned
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("manifest must be a JSON object"))?
+        .remove("signature");
     let payload = canonical_json(&unsigned)?;
 
     let verifying = VerifyingKey::from_bytes(&key_bytes).context("invalid Ed25519 public key")?;
@@ -158,9 +171,15 @@ mod tests {
     fn sign_then_verify_roundtrips() {
         let signed = sign_manifest(&manifest(), &SEED).unwrap();
         assert_eq!(signed["signature"]["alg"], "ed25519");
-        assert_eq!(verify_manifest(&signed, None).unwrap(), VerifyOutcome::ValidSelf);
+        assert_eq!(
+            verify_manifest(&signed, None).unwrap(),
+            VerifyOutcome::ValidSelf
+        );
         let pin = public_key_b64(&SEED);
-        assert_eq!(verify_manifest(&signed, Some(&pin)).unwrap(), VerifyOutcome::ValidPinned);
+        assert_eq!(
+            verify_manifest(&signed, Some(&pin)).unwrap(),
+            VerifyOutcome::ValidPinned
+        );
     }
 
     #[test]
@@ -186,6 +205,9 @@ mod tests {
         let wrong_pin = public_key_b64(&SEED);
         assert!(verify_manifest(&signed, Some(&wrong_pin)).is_err());
         assert!(verify_manifest(&manifest(), Some(&wrong_pin)).is_err());
-        assert_eq!(verify_manifest(&manifest(), None).unwrap(), VerifyOutcome::Unsigned);
+        assert_eq!(
+            verify_manifest(&manifest(), None).unwrap(),
+            VerifyOutcome::Unsigned
+        );
     }
 }

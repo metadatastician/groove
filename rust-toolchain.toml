@@ -4,4 +4,4 @@
 # Stable channel; edition 2024 requires Rust >= 1.85.
 
 [toolchain]
-channel = "stable"
+channel = "1.97.1"

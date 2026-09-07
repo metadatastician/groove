@@ -34,6 +34,11 @@ paths = [
 ]
 
 regexes = [
+  # Exact public type-name fixture in the staged estate baseline's own
+  # regexTarget documentation (standards@092dedad, lines 84-85). No path or
+  # rule exemption: real key material in that file must still be detected.
+  '''^Ed25519_Private_Key$''',
+
   # --- documented placeholder shapes (all anchored to the whole value) ------
 
   # Ellipsis-terminated illustrative values: `abc123def456...`. A real

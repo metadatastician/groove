@@ -3,9 +3,9 @@
 --
 ||| Capability Authenticity Proofs for Gossamer
 |||
-||| Proves that declared capabilities match actual behaviour.
-||| A service cannot claim to offer a capability it does not implement,
-||| and a consumer cannot invoke a capability the service does not offer.
+||| Proves structural properties of capability tables and permits.
+||| A nonzero pointer witness does NOT prove that native code exists at that
+||| address or behaves as advertised. The runtime binding is a trust assumption.
 |||
 ||| Builds on the Groove.idr capability sets and the Cap type from Types.idr.
 |||
@@ -15,8 +15,9 @@
 ||| 2. No phantom capabilities: you cannot invoke an undeclared capability.
 ||| 3. Capability attenuation: delegated capabilities cannot exceed the
 |||    original grant scope.
-||| 4. Revocation completeness: revoking a capability removes all derived
-|||    capabilities.
+||| 4. Pair revocation: the explicit revokePair operation records both tokens.
+|||    Discovering all transitive descendants and enforcing native revocation
+|||    remain runtime obligations, not consequences of this model.
 |||
 ||| Zero believe_me. All proofs are constructive.
 
@@ -37,9 +38,9 @@ import Data.List.Elem
 
 ||| A handler for a specific capability type.
 |||
-||| This is an opaque witness that a capability has been implemented.
-||| The actual handler lives in the Zig FFI layer; this type is the
-||| compile-time proof that an implementation exists.
+||| This records a nonzero numeric pointer for a capability. The actual
+||| handler lives in the Zig FFI layer; callability and behavioural correctness
+||| require separate evidence. MkHandler is public and is not an authority mint.
 |||
 ||| The phantom type parameter `cap` ties the handler to a specific
 ||| capability, preventing capability confusion.
@@ -84,12 +85,12 @@ lookupHandler (ITCons _ rest) (There later) = lookupHandler rest later
 -- Declaration-Implementation Correspondence
 --------------------------------------------------------------------------------
 
-||| Proof that a groove manifest's declared capabilities are fully implemented.
+||| Structural witness that every offered capability has a table entry.
 |||
-||| This is the core authenticity guarantee: a service that declares
-||| capabilities [Voice, Text, Presence] must provide handlers for all three.
+||| A service declaring [Voice, Text, Presence] must provide entries for all three.
 ||| The ImplTable type enforces this by construction — you cannot build an
-||| ImplTable unless you supply a handler for every element.
+||| ImplTable unless you supply a handler for every element. Nonzero pointer
+||| entries do not establish executable code, correct behaviour or signatures.
 public export
 data FullyImplemented : (offers : CapSet) -> Type where
   ||| Witness that every offered capability has a handler.
@@ -120,9 +121,10 @@ public export
 permitInvocation : {auto prf : Elem cap offers} -> InvocationPermit cap offers
 permitInvocation = MkPermit prf
 
-||| Invoke a capability with both authenticity and permit checks.
+||| Select a capability table entry with a membership permit. No native call
+||| occurs here; enforcement by the calling runtime is a separate obligation.
 ||| Requires:
-||| 1. The capability set is fully implemented (no phantom handlers)
+||| 1. The capability set has a structurally complete handler table
 ||| 2. The specific capability is in the offers set (no phantom invocations)
 public export
 authenticInvoke : FullyImplemented offers
@@ -148,8 +150,9 @@ data Attenuated : (original : ResourceKind) -> (derived : ResourceKind) -> Type 
   ||| Filesystem read-only is an attenuation of read-write.
   AttFsReadOnly : Attenuated (FileSystem (ReadWrite paths))
                               (FileSystem (ReadOnlyPaths paths))
-  ||| Filesystem AppData is an attenuation of any filesystem scope.
-  AttFsAppData : Attenuated (FileSystem scope) (FileSystem AppData)
+  ||| AppData can retain its own scope. Arbitrary path grants do not imply
+  ||| access to AppData: the opaque AppData scope has no path-inclusion proof.
+  AttFsAppData : Attenuated (FileSystem AppData) (FileSystem AppData)
   ||| Network: specific hosts is an attenuation of all-network.
   AttNetHosts : Attenuated (Network AllNetwork) (Network (AllowHosts hosts))
   ||| Shell: specific commands is an attenuation of all-shell.
@@ -159,15 +162,11 @@ data Attenuated : (original : ResourceKind) -> (derived : ResourceKind) -> Type 
 
 ||| Proof that attenuation is transitive.
 ||| If A attenuates to B and B attenuates to C, then A attenuates to C.
-||| We prove this for the identity case; other cases are encoded directly
-||| in the Attenuated constructors.
 public export
-attenuateTransitive : Attenuated a b -> Attenuated b b -> Attenuated a b
-attenuateTransitive prf AttSame = prf
--- `AttFsAppData : Attenuated (FileSystem scope) (FileSystem AppData)` also
--- inhabits `Attenuated b b` (when scope = AppData), so coverage requires it.
--- `b` is then `FileSystem AppData` and `prf : Attenuated a b` is the result.
-attenuateTransitive prf AttFsAppData = prf
+attenuateTransitive : Attenuated a b -> Attenuated b c -> Attenuated a c
+attenuateTransitive AttSame next = next
+attenuateTransitive first AttSame = first
+attenuateTransitive AttFsAppData AttFsAppData = AttFsAppData
 
 --------------------------------------------------------------------------------
 -- Revocation Completeness
@@ -189,29 +188,35 @@ data IsRevoked : (token : Bits64) -> RevocationSet -> Type where
   ||| The token was revoked earlier.
   RevokedThere : IsRevoked token rest -> IsRevoked token (RevAdd other rest)
 
-||| Proof that a derived capability is revoked when its parent is revoked.
-|||
-||| If capability A was delegated to produce capability B (via attenuation),
-||| and A's token is revoked, then B is also invalid.
+||| Evidence that both a parent and a specified derived token are recorded
+||| as revoked in the SAME set. The old unindexed witness checked only the
+||| parent and could be constructed while the derived token remained valid.
 public export
-data RevocationComplete : Type where
-  ||| Witness that revoking parent token invalidates derived token.
-  MkRevComplete : (parentToken : Bits64)
-               -> (derivedToken : Bits64)
-               -> (revoked : RevocationSet)
-               -> {auto 0 parentRevoked : IsRevoked parentToken revoked}
-               -> RevocationComplete
+data RevocationComplete : Bits64 -> Bits64 -> RevocationSet -> Type where
+  MkRevComplete : IsRevoked parentToken revoked
+               -> IsRevoked derivedToken revoked
+               -> RevocationComplete parentToken derivedToken revoked
+
+||| Revoke the explicitly supplied pair. This does not discover descendants.
+public export
+revokePair : Bits64 -> Bits64 -> RevocationSet -> RevocationSet
+revokePair parent derived revoked = RevAdd derived (RevAdd parent revoked)
+
+||| The operation, rather than an assumed constructor invariant, establishes
+||| membership for BOTH tokens for every input revocation set.
+public export
+revokePairComplete : (parent, derived : Bits64) -> (revoked : RevocationSet)
+                 -> RevocationComplete parent derived (revokePair parent derived revoked)
+revokePairComplete parent derived revoked =
+  MkRevComplete (RevokedThere RevokedHere) RevokedHere
 
 --------------------------------------------------------------------------------
 -- Groove Manifest Authenticity
 --------------------------------------------------------------------------------
 
-||| Proof that a groove manifest is authentic: every offered capability
-||| is implemented and every consumed capability is actually needed.
-|||
-||| This combines:
-||| 1. FullyImplemented for the offers set
-||| 2. A witness that the consumes set is referenced by at least one handler
+||| Structural evidence for the offers table, under the handler binding
+||| assumption above. The consumes parameter is phantom: this does NOT prove
+||| consumers are needed, authenticate a wire manifest, or verify a signature.
 public export
 data AuthenticManifest : (offers : CapSet) -> (consumes : CapSet) -> Type where
   MkAuthentic : FullyImplemented offers
@@ -222,11 +227,8 @@ public export
 proveAuthentic : ImplTable offers -> AuthenticManifest offers consumes
 proveAuthentic table = MkAuthentic (proveImplemented table)
 
-||| Proof that connecting to an authentic service is safe.
-|||
-||| If the service's manifest is authentic (all declared capabilities are
-||| implemented) and compatible (our requirements are satisfied), then
-||| the connection will behave as advertised.
+||| Structural compatibility plus an offers table. This does NOT prove
+||| the runtime connection's safety or advertised behaviour.
 public export
 data SafeConnection : (clientReqs : CapSet) -> (serverOffers : CapSet) -> Type where
   MkSafe : AuthenticManifest serverOffers serverCons

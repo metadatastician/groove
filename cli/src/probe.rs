@@ -39,10 +39,10 @@ pub async fn run(host: &str, extra_ports: Option<&str>, timeout_ms: u64) -> Resu
     // Add extra ports if specified
     if let Some(extra) = extra_ports {
         for p in extra.split(',') {
-            if let Ok(port) = p.trim().parse::<u16>() {
-                if !ports.contains(&port) {
-                    ports.push(port);
-                }
+            if let Ok(port) = p.trim().parse::<u16>()
+                && !ports.contains(&port)
+            {
+                ports.push(port);
             }
         }
     }
@@ -67,15 +67,18 @@ pub async fn run(host: &str, extra_ports: Option<&str>, timeout_ms: u64) -> Resu
 
         for probe_host in &hosts_to_try {
             let addr = if probe_host.starts_with('[') {
-                format!("{}:{}", probe_host.trim_matches(|c| c == '[' || c == ']'), port)
+                format!(
+                    "{}:{}",
+                    probe_host.trim_matches(|c| c == '[' || c == ']'),
+                    port
+                )
             } else {
                 format!("{}:{}", probe_host, port)
             };
 
             match probe_groove(&addr, probe_timeout).await {
                 Ok(Some(manifest_json)) => {
-                    if let Ok(manifest) =
-                        serde_json::from_str::<serde_json::Value>(&manifest_json)
+                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_json)
                     {
                         let service_id = manifest["service_id"]
                             .as_str()
@@ -85,10 +88,7 @@ pub async fn run(host: &str, extra_ports: Option<&str>, timeout_ms: u64) -> Resu
                             .as_str()
                             .unwrap_or("?")
                             .to_string();
-                        let mode = manifest["mode"]
-                            .as_str()
-                            .unwrap_or("active")
-                            .to_string();
+                        let mode = manifest["mode"].as_str().unwrap_or("active").to_string();
 
                         let capabilities: Vec<String> = manifest["capabilities"]
                             .as_object()
@@ -180,46 +180,43 @@ pub async fn mesh(json: &bool) -> Result<()> {
     for &port in &ports {
         for host in &["::1", "127.0.0.1"] {
             let addr = format!("{}:{}", host, port);
-            if let Ok(Some(manifest_json)) = probe_groove(&addr, probe_timeout).await {
-                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_json) {
-                    let service_id = manifest["service_id"]
-                        .as_str()
-                        .unwrap_or("unknown")
-                        .to_string();
-                    let capabilities: Vec<String> = manifest["capabilities"]
-                        .as_object()
-                        .map(|obj| {
-                            obj.values()
-                                .filter_map(|v| v["type"].as_str().map(String::from))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    let consumes: Vec<String> = manifest["consumes"]
-                        .as_array()
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str().map(String::from))
-                                .collect()
-                        })
-                        .unwrap_or_default();
+            if let Ok(Some(manifest_json)) = probe_groove(&addr, probe_timeout).await
+                && let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_json)
+            {
+                let service_id = manifest["service_id"]
+                    .as_str()
+                    .unwrap_or("unknown")
+                    .to_string();
+                let capabilities: Vec<String> = manifest["capabilities"]
+                    .as_object()
+                    .map(|obj| {
+                        obj.values()
+                            .filter_map(|v| v["type"].as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let consumes: Vec<String> = manifest["consumes"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
 
-                    services.push(DiscoveredService {
-                        service_id,
-                        port,
-                        host: host.to_string(),
-                        version: manifest["service_version"]
-                            .as_str()
-                            .unwrap_or("?")
-                            .to_string(),
-                        capabilities,
-                        consumes,
-                        mode: manifest["mode"]
-                            .as_str()
-                            .unwrap_or("active")
-                            .to_string(),
-                    });
-                    break;
-                }
+                services.push(DiscoveredService {
+                    service_id,
+                    port,
+                    host: host.to_string(),
+                    version: manifest["service_version"]
+                        .as_str()
+                        .unwrap_or("?")
+                        .to_string(),
+                    capabilities,
+                    consumes,
+                    mode: manifest["mode"].as_str().unwrap_or("active").to_string(),
+                });
+                break;
             }
         }
     }
@@ -272,8 +269,7 @@ pub async fn mesh(json: &bool) -> Result<()> {
                 let providers: Vec<&DiscoveredService> = services
                     .iter()
                     .filter(|s| {
-                        s.service_id != consumer.service_id
-                            && s.capabilities.contains(cap_needed)
+                        s.service_id != consumer.service_id && s.capabilities.contains(cap_needed)
                     })
                     .collect();
 
@@ -320,9 +316,7 @@ pub async fn probe_groove(addr: &str, probe_timeout: Duration) -> Result<Option<
 
     // Send a minimal HTTP/1.0 GET request. JSON is the required encoding
     // (SPEC 2.1.2); a2ml is advertised at lower preference per ADR 0002.
-    let request = format!(
-        "GET /.well-known/groove HTTP/1.0\r\nHost: localhost\r\nAccept: application/groove+json, application/groove+a2ml;q=0.5, application/json;q=0.2\r\n\r\n"
-    );
+    let request = "GET /.well-known/groove HTTP/1.0\r\nHost: localhost\r\nAccept: application/groove+json, application/groove+a2ml;q=0.5, application/json;q=0.2\r\n\r\n".to_string();
 
     let mut stream = stream;
     stream.write_all(request.as_bytes()).await?;

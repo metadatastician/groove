@@ -1,0 +1,4 @@
+package groove-proof-control-revocation
+sourcedir = "../../proofs"
+depends = base
+modules = Checks.RejectRevocation

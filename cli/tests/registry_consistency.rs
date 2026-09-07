@@ -88,7 +88,9 @@ fn spec_port_literals_are_registered_or_in_band() {
         let text = fs::read_to_string(&path).expect("spec file readable");
         for (lineno, line) in text.lines().enumerate() {
             for cap in re.captures_iter(line) {
-                let Ok(port) = cap[1].parse::<u16>() else { continue };
+                let Ok(port) = cap[1].parse::<u16>() else {
+                    continue;
+                };
                 // Only audit plausible service ports; skip e.g. Access-Control-Max-Age.
                 if !(1024..=49151).contains(&port) {
                     continue;

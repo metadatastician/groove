@@ -1,0 +1,4 @@
+package groove-proof-control-positive
+sourcedir = "../../proofs"
+depends = base
+modules = Checks.AcceptProperties

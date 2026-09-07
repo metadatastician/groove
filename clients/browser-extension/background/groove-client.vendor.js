@@ -52,8 +52,9 @@
     ) {
       errors.push("capabilities must be a JSON object (map), not an array");
     }
-    if (manifest.consumes !== undefined && !Array.isArray(manifest.consumes)) {
-      errors.push("consumes must be an array when present");
+    if (manifest.consumes !== undefined && (!Array.isArray(manifest.consumes) ||
+        manifest.consumes.some(function (c) { return typeof c !== "string"; }))) {
+      errors.push("consumes must be an array of strings when present");
     }
     return errors.length ? { ok: false, errors: errors } : { ok: true, manifest: manifest };
   }
@@ -92,12 +93,15 @@
    * Conservative: unknown shapes return false.
    */
   function versionSatisfies(offered, required) {
-    if (!required) return true;
-    if (!offered) return false;
+    if (required === undefined || required === null || required === "") return true;
+    if (typeof required !== "string" || typeof offered !== "string") return false;
+    var shape = /^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){0,2}$/;
     var plus = /\+$/.test(required);
-    var req = required.replace(/\+$/, "").split(".").map(Number);
+    var constraint = required.replace(/\+$/, "");
+    if (!shape.test(offered) || !shape.test(constraint)) return false;
+    var req = constraint.split(".").map(Number);
     var off = offered.split(".").map(Number);
-    if (req.some(isNaN) || off.some(isNaN)) return false;
+    if (!req.concat(off).every(Number.isSafeInteger)) return false;
     while (req.length < 3) req.push(0);
     while (off.length < 3) off.push(0);
     if (off[0] !== req[0]) return plus ? off[0] > req[0] : false;

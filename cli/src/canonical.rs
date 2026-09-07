@@ -12,7 +12,7 @@
 //   * object keys are compared as UTF-8 byte sequences, which coincides
 //     with JCS's UTF-16 ordering on the ASCII keys manifests use.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde_json::Value;
 
 /// Serialise `value` in canonical form. Errors on any float — a manifest
@@ -41,7 +41,9 @@ fn write_canonical(value: &Value, out: &mut Vec<u8>) -> Result<()> {
             // serde_json string escaping is RFC 8259-minimal, matching the
             // JCS escaping rules for the code points manifests contain.
             out.extend_from_slice(
-                serde_json::to_string(s).expect("string serialises").as_bytes(),
+                serde_json::to_string(s)
+                    .expect("string serialises")
+                    .as_bytes(),
             );
         }
         Value::Array(items) => {
@@ -63,7 +65,9 @@ fn write_canonical(value: &Value, out: &mut Vec<u8>) -> Result<()> {
                     out.push(b',');
                 }
                 out.extend_from_slice(
-                    serde_json::to_string(key).expect("key serialises").as_bytes(),
+                    serde_json::to_string(key)
+                        .expect("key serialises")
+                        .as_bytes(),
                 );
                 out.push(b':');
                 write_canonical(&map[key.as_str()], out)?;

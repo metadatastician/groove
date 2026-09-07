@@ -3,7 +3,7 @@
 //
 // Truth-table tests for bidirectional capability compatibility.
 
-use groove::registry::{check_compat_entries, ServiceEntry};
+use groove::registry::{ServiceEntry, check_compat_entries};
 
 fn entry(id: &str, offers: &[&str], consumes: &[&str]) -> ServiceEntry {
     ServiceEntry {
