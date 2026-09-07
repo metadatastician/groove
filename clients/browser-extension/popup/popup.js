@@ -29,7 +29,7 @@ function renderServices(registry) {
   badgeEl.className = live > 0 ? "badge" : "badge zero";
 
   if (entries.length === 0) {
-    servicesEl.innerHTML = '<div class="empty">No groove targets in the registry</div>';
+    showMessage("No groove targets in the registry");
     return;
   }
 
@@ -38,34 +38,30 @@ function renderServices(registry) {
     e.status === "connected" ? 0 : e.status === "degraded" ? 1 : e.status === "discovered" ? 2 : 3;
   entries.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 
-  servicesEl.innerHTML = entries
-    .map((entry) => {
-      const caps = entry.capabilities?.join(", ") || "none";
-      const state = STATUS_LABEL[entry.status] ?? entry.status;
-      return `
-        <div class="service">
-          <div class="dot ${entry.status}"></div>
-          <div class="service-info">
-            <div class="service-name">${escapeHtml(entry.name)}${state ? ` <small>(${escapeHtml(state)})</small>` : ""}</div>
-            <div class="service-caps">${escapeHtml(caps)}</div>
-          </div>
-          <div class="service-port">:${entry.port}</div>
-        </div>
-      `;
-    })
-    .join("");
+  servicesEl.replaceChildren(...entries.map((entry) => {
+    const row = element("div", "service");
+    const status = Object.hasOwn(STATUS_LABEL, entry.status) ? entry.status : "not_found";
+    const info = element("div", "service-info");
+    const name = element("div", "service-name", entry.name);
+    if (STATUS_LABEL[status]) name.append(element("small", "", ` (${STATUS_LABEL[status]})`));
+    info.append(name, element("div", "service-caps", entry.capabilities?.join(", ") || "none"));
+    row.append(element("div", `dot ${status}`), info, element("div", "service-port", `:${entry.port}`));
+    return row;
+  }));
 }
 
 /**
- * Escape HTML entities to prevent XSS.
- *
- * @param {string} str - Raw string
- * @returns {string} Escaped string
+ * All remote strings are text nodes, never HTML or class names.
  */
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = String(text);
+  return node;
+}
+
+function showMessage(message) {
+  servicesEl.replaceChildren(element("div", "empty", message));
 }
 
 /**
@@ -76,7 +72,7 @@ async function loadStatus() {
     const registry = await browser.runtime.sendMessage({ type: "groove:status" });
     renderServices(registry);
   } catch (err) {
-    servicesEl.innerHTML = `<div class="empty">Error: ${escapeHtml(err.message)}</div>`;
+    showMessage(`Error: ${err.message}`);
   }
 }
 
@@ -93,7 +89,7 @@ async function probeAll() {
     await new Promise((r) => setTimeout(r, 500));
     await loadStatus();
   } catch (err) {
-    servicesEl.innerHTML = `<div class="empty">Probe failed: ${escapeHtml(err.message)}</div>`;
+    showMessage(`Probe failed: ${err.message}`);
   }
 
   probeBtn.textContent = "Probe All";

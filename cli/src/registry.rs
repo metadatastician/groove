@@ -9,7 +9,7 @@
 
 use std::sync::LazyLock;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
@@ -241,7 +241,10 @@ pub fn check_compat(a_id: &str, b_id: &str) -> Result<CompatResult> {
         );
     };
     let Some(b) = find_service(b_id) else {
-        bail!("Service '{}' not found in registry. Use a registered service_id.", b_id);
+        bail!(
+            "Service '{}' not found in registry. Use a registered service_id.",
+            b_id
+        );
     };
     Ok(check_compat_entries(a, b))
 }

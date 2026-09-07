@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 //
 // Unit + integration tests for the shared groove client and the extension's
-// discovery core. Runs with `node --test`; no browser required — the
+// discovery core. Runs with `bun test`; no browser required — the
 // integration test spins up a stub Groove provider on an ephemeral port.
 
 import { test } from "node:test";
@@ -73,6 +73,47 @@ test("offeredTypes extracts capability types from the map", () => {
     }),
     ["voice", "text"]
   );
+});
+
+test("malformed numeric versions never satisfy a constraint", () => {
+  for (const invalid of ["1..2", "1.2.3.4", " 1", "01.2", "1e0.2", "-1", "9007199254740992", 1, {}]) {
+    assert.equal(GrooveClient.versionSatisfies(invalid, "1.0+"), false);
+    assert.equal(GrooveClient.versionSatisfies("1.2.3", invalid), false);
+  }
+});
+
+test("consumes cannot smuggle non-string capability identifiers", () => {
+  const base = { groove_version: "1", service_id: "test", capabilities: {} };
+  assert.equal(GrooveClient.parseManifestJson(JSON.stringify(base)).ok, true);
+  for (const consumes of [null, {}, [null], [1], [{}]]) {
+    assert.equal(GrooveClient.parseManifestJson(JSON.stringify({ ...base, consumes })).ok, false);
+  }
+});
+
+test("probe deadline includes a stalled response body", async () => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/groove+json" });
+    res.write('{"groove_version":');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const result = await Promise.race([
+      discovery.probeOne(`http://127.0.0.1:${server.address().port}`, fetch),
+      new Promise((_, reject) => {
+        const guard = setTimeout(() => reject(new Error("probe exceeded deadline")), 3500);
+        guard.unref();
+      }),
+    ]);
+    assert.equal(result, null);
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});
+
+test("probe rejects oversized bodies", async () => {
+  const fetchImpl = async () => new Response("x".repeat(65537));
+  assert.equal(await discovery.probeOne("http://127.0.0.1:1", fetchImpl), null);
 });
 
 // -------------------------------------------------------- integration: probe

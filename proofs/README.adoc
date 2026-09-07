@@ -19,9 +19,9 @@ toc::[]
 [cols="1,3",options="header"]
 |===
 | Module | What it proves (over the gossamer-era ABI)
-| `GrooveTermination.idr` | The Groove connect-handshake terminates in bounded length (≤4 steps); no privilege escalation; determinism.
+| `GrooveTermination.idr` | Completed abstract traces have ≤4 steps; compatibility values contain subset evidence. Its named determinism witness is predicate reflexivity, not terminal-outcome uniqueness; the trace transitions permit both unguarded acceptance and rejection.
 | `IPCDispatch.idr` | IPC command dispatch + protocol-conformance (`ConformsTo`) machinery for the groove command surface.
-| `CapabilityAuthenticity.idr` | Declared capabilities match their implementations (manifest authenticity; no phantom capabilities; attenuation/revocation).
+| `CapabilityAuthenticity.idr` | Table coverage and membership, structural attenuation, and evidence that both named IDs are in one revocation set. It does not prove that a numeric handler address implements the capability or that native calls enforce the model.
 |===
 
 == Status — WIRED, VERIFIED, DRIFT-GUARDED (2026-07-27)
@@ -29,7 +29,7 @@ toc::[]
 Layout: `proofs/Gossamer/ABI/` holds the three proof modules plus the two
 vendored dependencies, matching their declared `module Gossamer.ABI.*` names.
 
-* `groove-proofs.ipkg` (repo root) typechecks all five modules; the `proofs`
+* `groove-proofs.ipkg` (repo root) typechecks all twelve modules; the `proofs`
   workflow runs it on every PR/push touching `proofs/**` (plus weekly cron).
 * `Types.idr` and `Groove.idr` are **byte-identical vendored copies** of the
   gossamer sources, pinned to an upstream commit in `proofs/VENDOR.json`. The
@@ -48,6 +48,18 @@ vendored dependencies, matching their declared `module Gossamer.ABI.*` names.
   proved via the repaired general lemma.
 
 == PROOFS-1 — remaining evolution (open)
+
+Local recheck on 2026-09-05 used Idris2 0.7.0 and 0.8.0 with fresh build directories:
+all twelve modules and the positive fixture passed. Negative controls reject
+parent-only revocation evidence and arbitrary-path-to-AppData attenuation.
+Run `bash tests/check_proofs.sh /absolute/path/to/evidence` to reproduce.
+Set `IDRIS2` to the desired compiler executable. CI pins 0.8.0; a local result
+does not assert a new remote CI run.
+
+The corrected revocation witness binds both IDs to the same revocation set;
+it is not a transitive descendant-discovery algorithm. The finite handshake
+model does not prove eventual delivery or termination of a network peer under
+message loss. No proof-to-Rust or proof-to-Zig refinement is claimed.
 
 The relocation itself is finished. What remains of the original PROOFS-1 vision
 is the *re-founding*, still open:

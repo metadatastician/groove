@@ -3,8 +3,9 @@
 --
 ||| Groove Protocol Handshake Termination Proof
 |||
-||| Proves that the Groove capability negotiation protocol terminates
-||| and produces a valid capability set (no privilege escalation).
+||| Bounds completed traces of an abstract handshake and projects the
+||| subset witnesses supplied by a compatibility value. It does not prove
+||| network progress or runtime enforcement of those witnesses.
 |||
 ||| The Groove handshake is a finite-state protocol:
 |||   1. Initiator sends manifest (offers + consumes)
@@ -14,11 +15,13 @@
 |||   5. Connection established or rejected
 |||
 ||| Key properties proved:
-||| 1. Termination: the handshake completes in at most 4 message exchanges.
+||| 1. Trace bound: a TermCompleted value contains at most 4 abstract steps.
 ||| 2. No privilege escalation: the negotiated capability set is a subset
 |||    of both parties' declared offers.
 ||| 3. Mutual satisfaction: both parties' requirements are met.
-||| 4. Determinism: the same inputs always produce the same result.
+||| 4. Predicate reflexivity: checkSubset equals itself on identical inputs.
+|||    TermStep has unguarded accept/reject alternatives, so terminal-outcome
+|||    determinism is NOT established by this model.
 |||
 ||| Zero believe_me. All proofs are constructive.
 |||
@@ -181,7 +184,7 @@ public export
 termVerifyRejectIs3Steps : termLength GrooveTermination.termRejectAtVerify = 3
 termVerifyRejectIs3Steps = Refl
 
-||| Proof: ALL possible handshake paths terminate in at most 4 steps.
+||| Bound on completed handshake traces, not proof of eventual completion.
 ||| This is proved by exhaustive case analysis — the 3 possible paths
 ||| have lengths 4, 2, and 3 respectively.
 ||| Length of a completed handshake's trace (top-level so it can appear
@@ -243,11 +246,9 @@ noEscalation (MkSafe (MkCompat {aFeedsB} {bFeedsA})) = (aFeedsB, bFeedsA)
 -- Determinism
 --------------------------------------------------------------------------------
 
-||| Proof that the handshake outcome is deterministic given the same manifests.
-|||
-||| If two handshake attempts start with the same manifests, they reach
-||| the same terminal state. This follows from checkSubset being a pure
-||| function with no side effects.
+||| Historical name retained for module-surface compatibility. This datatype
+||| packages reflexivity of a pure subset check; it neither indexes traces
+||| by manifests nor proves uniqueness of a handshake's terminal outcome.
 public export
 data Deterministic : Type where
   ||| Given two subset checks on the same inputs, they produce the same Bool.

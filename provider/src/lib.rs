@@ -8,15 +8,17 @@
 
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tokio::time::Instant;
 
 use groove::registry;
@@ -30,8 +32,33 @@ const SWEEP_INTERVAL: Duration = Duration::from_millis(50);
 const MIN_TTL: Duration = Duration::from_millis(10);
 const MAX_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// Maximum simultaneous HTTP exchanges across both loopback listeners.
+pub const MAX_HTTP_CONNECTIONS: usize = 128;
+/// Maximum live Groove sessions. Further connects receive 503 until capacity frees.
+pub const MAX_ACTIVE_HANDLES: usize = 1024;
+/// Maximum retained audit records. Persist JSON-line stdout for a full history.
+pub const MAX_ATTESTATIONS: usize = 4096;
+/// Overall deadline for reading and responding to one HTTP request.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+// Bound fields retained in every handle/audit record, not only their counts.
+fn bounded_session_metadata(manifest: &Value) -> bool {
+    manifest
+        .get("service_id")
+        .and_then(Value::as_str)
+        .is_none_or(|s| s.len() <= 128)
+        && manifest
+            .get("service_version")
+            .and_then(Value::as_str)
+            .is_none_or(|s| s.len() <= 64)
+        && manifest
+            .get("consumes")
+            .and_then(Value::as_array)
+            .is_none_or(|caps| caps.len() <= 64)
+}
+
 /// Provider configuration.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     /// Port to bind on both [::1] and 127.0.0.1. 0 = ephemeral (the actual
     /// port is reported by `Server::port`).
@@ -43,6 +70,20 @@ pub struct Config {
     /// Ed25519 seed: serve the manifest with a detached `signature`
     /// member (SPEC §2.1.5, ADR 0010). None = serve unsigned.
     pub signing_seed: Option<[u8; 32]>,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("port", &self.port)
+            .field("manifest", &self.manifest)
+            .field("log_attestations", &self.log_attestations)
+            .field(
+                "signing_seed",
+                &self.signing_seed.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
 }
 
 impl Default for Config {
@@ -58,7 +99,9 @@ impl Default for Config {
 
 /// The registry assignment for the reference provider.
 pub fn default_port() -> u16 {
-    registry::find_service("groove-ref").map(|e| e.port).unwrap_or(6465)
+    registry::find_service("groove-ref")
+        .map(|e| e.port)
+        .unwrap_or(6465)
 }
 
 /// The built-in manifest, per SPEC §2.1.2 and the groove-ref registry entry.
@@ -130,9 +173,8 @@ struct State {
     /// expiry; a removed handle answers 410 forever after).
     handles: HashMap<String, HandleEntry>,
     /// Hash-chained provenance records (SPEC §5.1).
-    attestations: Vec<Value>,
+    attestations: VecDeque<Value>,
     last_hash: String,
-    handle_counter: u64,
     log_attestations: bool,
 }
 
@@ -190,7 +232,10 @@ impl State {
             println!("{record}");
         }
         self.last_hash = hash;
-        self.attestations.push(record);
+        if self.attestations.len() == MAX_ATTESTATIONS {
+            self.attestations.pop_front();
+        }
+        self.attestations.push_back(record);
     }
 
     /// Reap every due lease at `now` (SPEC §4.6): remove the handle — the
@@ -214,7 +259,7 @@ impl State {
                     Vec::new(),
                     Some(json!({
                         "residue": 0,
-                        "handle": handle,
+                        "connection_id": connection_id(&handle),
                         "lease": {
                             "mode": lease.mode.as_str(),
                             "ttl_ms": lease.ttl.as_millis() as u64,
@@ -226,15 +271,22 @@ impl State {
     }
 }
 
-/// A running provider. Dropping it does not stop the tasks; hold it for the
-/// lifetime you need (tests) or block forever (binary).
+/// A running provider. It owns its listeners, exchanges and lease sweeper;
+/// dropping it cancels that work. Use `shutdown` to wait for cancellation.
 pub struct Server {
     port: u16,
     has_v6: bool,
     state: Arc<Mutex<State>>,
+    tasks: JoinSet<()>,
 }
 
 impl Server {
+    /// Stop accepting requests and wait for the listener tasks and sweeper.
+    /// Active exchanges are cancelled when their listener's task set is dropped.
+    pub async fn shutdown(mut self) {
+        self.tasks.shutdown().await;
+    }
+
     pub fn port(&self) -> u16 {
         self.port
     }
@@ -263,31 +315,52 @@ pub async fn serve(config: Config) -> Result<Server> {
     let (listeners, port, has_v6) = bind_dual_stack(config.port).await?;
 
     let mut manifest = config.manifest.unwrap_or_else(|| builtin_manifest(port));
+    let findings =
+        groove::validate::validate_manifest_content(&manifest.to_string(), "provider manifest");
+    anyhow::ensure!(
+        // DOG-04 checks the registry's default port. Explicit port overrides
+        // and ephemeral test listeners are valid provider configurations.
+        !findings
+            .iter()
+            .any(|f| f.check != "DOG-04" && matches!(f.severity.as_str(), "high" | "critical")),
+        "provider manifest does not satisfy the Groove schema"
+    );
+    anyhow::ensure!(
+        bounded_session_metadata(&manifest),
+        "provider manifest exceeds metadata limits"
+    );
     if let Some(seed) = &config.signing_seed {
-        manifest = groove::sign::sign_manifest(&manifest, seed)
-            .context("sign manifest (SPEC §2.1.5)")?;
+        manifest =
+            groove::sign::sign_manifest(&manifest, seed).context("sign manifest (SPEC §2.1.5)")?;
     }
     let state = Arc::new(Mutex::new(State {
         manifest,
         handles: HashMap::new(),
-        attestations: Vec::new(),
+        attestations: VecDeque::new(),
         last_hash: "sha256:genesis".to_string(),
-        handle_counter: 0,
         log_attestations: config.log_attestations,
     }));
 
+    let mut tasks = JoinSet::new();
+    let permits = Arc::new(Semaphore::new(MAX_HTTP_CONNECTIONS));
     for listener in listeners {
         let state = Arc::clone(&state);
-        tokio::spawn(async move {
+        let permits = Arc::clone(&permits);
+        tasks.spawn(async move {
+            let mut exchanges = JoinSet::new();
             loop {
-                match listener.accept().await {
-                    Ok((stream, _)) => {
+                tokio::select! {
+                    accepted = listener.accept() => {
+                        let Ok((stream, _)) = accepted else { break };
+                        // Reject overload without spawning another waiting task.
+                        let Ok(permit) = Arc::clone(&permits).try_acquire_owned() else { continue };
                         let state = Arc::clone(&state);
-                        tokio::spawn(async move {
-                            let _ = handle_connection(stream, state).await;
+                        exchanges.spawn(async move {
+                            let _permit = permit;
+                            let _ = tokio::time::timeout(REQUEST_TIMEOUT, handle_connection(stream, state)).await;
                         });
                     }
-                    Err(_) => break,
+                    _ = exchanges.join_next(), if !exchanges.is_empty() => {}
                 }
             }
         });
@@ -298,16 +371,24 @@ pub async fn serve(config: Config) -> Result<Server> {
     // request-time side effects.
     {
         let state = Arc::clone(&state);
-        tokio::spawn(async move {
+        tasks.spawn(async move {
             let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
             loop {
                 ticker.tick().await;
-                state.lock().expect("state lock").sweep_leases(Instant::now());
+                state
+                    .lock()
+                    .expect("state lock")
+                    .sweep_leases(Instant::now());
             }
         });
     }
 
-    Ok(Server { port, has_v6, state })
+    Ok(Server {
+        port,
+        has_v6,
+        state,
+        tasks,
+    })
 }
 
 async fn bind_dual_stack(port: u16) -> Result<(Vec<TcpListener>, u16, bool)> {
@@ -328,7 +409,9 @@ async fn bind_dual_stack(port: u16) -> Result<(Vec<TcpListener>, u16, bool)> {
     }
 
     if !v6_supported {
-        let v4 = TcpListener::bind(("127.0.0.1", 0)).await.context("bind 127.0.0.1:0")?;
+        let v4 = TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .context("bind 127.0.0.1:0")?;
         let p = v4.local_addr()?.port();
         return Ok((vec![v4], p, false));
     }
@@ -336,7 +419,9 @@ async fn bind_dual_stack(port: u16) -> Result<(Vec<TcpListener>, u16, bool)> {
     // Ephemeral dual-stack: pick on v6, mirror on v4; the pair must share a
     // port number so discovery sees one service (CONF-L2-06).
     for _ in 0..16 {
-        let v6 = TcpListener::bind(("::1", 0)).await.context("bind [::1]:0")?;
+        let v6 = TcpListener::bind(("::1", 0))
+            .await
+            .context("bind [::1]:0")?;
         let p = v6.local_addr()?.port();
         if let Ok(v4) = TcpListener::bind(("127.0.0.1", p)).await {
             return Ok((vec![v6, v4], p, true));
@@ -358,6 +443,9 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
         }
         buf.extend_from_slice(&chunk[..n]);
         if let Some(pos) = find_subsequence(&buf, b"\r\n\r\n") {
+            if pos + 4 > 65_536 {
+                return respond(&mut stream, 400, "text/plain", "headers too large").await;
+            }
             break pos + 4;
         }
         if buf.len() > 65_536 {
@@ -365,19 +453,92 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
         }
     };
 
-    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
-    let mut lines = head.lines();
+    let Ok(head) = std::str::from_utf8(&buf[..header_end]) else {
+        return respond(&mut stream, 400, "text/plain", "invalid header encoding").await;
+    };
+    let mut lines = head.split("\r\n");
     let request_line = lines.next().unwrap_or_default().to_string();
     let mut accept = String::new();
-    let mut content_length = 0usize;
+    let mut content_length = None;
+    let mut host = None;
+    let mut origin = None;
     for line in lines {
-        let Some((name, value)) = line.split_once(':') else { continue };
-        match name.trim().to_ascii_lowercase().as_str() {
+        if line.is_empty() {
+            continue;
+        }
+        let Some((name, value)) = line.split_once(':') else {
+            return respond(&mut stream, 400, "text/plain", "malformed header").await;
+        };
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
+        {
+            return respond(&mut stream, 400, "text/plain", "invalid header name").await;
+        }
+        if value.bytes().any(|b| b.is_ascii_control() && b != b'\t') {
+            return respond(&mut stream, 400, "text/plain", "invalid header value").await;
+        }
+        match name.to_ascii_lowercase().as_str() {
             "accept" => accept = value.trim().to_string(),
-            "content-length" => content_length = value.trim().parse().unwrap_or(0),
+            "content-length" => {
+                let value = value.trim();
+                let parsed = value.parse::<usize>();
+                if content_length.is_some()
+                    || value.is_empty()
+                    || !value.bytes().all(|b| b.is_ascii_digit())
+                    || parsed.is_err()
+                {
+                    return respond(
+                        &mut stream,
+                        400,
+                        "text/plain",
+                        "invalid or duplicate content-length",
+                    )
+                    .await;
+                }
+                content_length = parsed.ok();
+            }
+            "transfer-encoding" => {
+                return respond(
+                    &mut stream,
+                    400,
+                    "text/plain",
+                    "transfer-encoding is not supported",
+                )
+                .await;
+            }
+            "host" => {
+                if host.replace(value.trim().to_string()).is_some() {
+                    return respond(&mut stream, 400, "text/plain", "duplicate host").await;
+                }
+            }
+            "origin" if origin.replace(value.trim().to_string()).is_some() => {
+                return respond(&mut stream, 400, "text/plain", "duplicate origin").await;
+            }
             _ => {}
         }
     }
+
+    // The provider is a loopback service. Refuse DNS-rebinding hostnames and
+    // cross-origin browser requests before they can create or consume handles.
+    if !host.as_deref().is_some_and(loopback_authority) {
+        return respond(&mut stream, 400, "text/plain", "loopback Host required").await;
+    }
+    if origin.as_deref().is_some_and(|o| {
+        o.strip_prefix("http://")
+            .or_else(|| o.strip_prefix("https://"))
+            .is_none_or(|authority| !loopback_authority(authority))
+    }) {
+        return respond(
+            &mut stream,
+            403,
+            "text/plain",
+            "cross-origin request refused",
+        )
+        .await;
+    }
+    let content_length = content_length.unwrap_or(0);
 
     if content_length > 1_048_576 {
         return respond(&mut stream, 400, "text/plain", "body too large").await;
@@ -388,14 +549,23 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
     while body.len() < content_length {
         let n = stream.read(&mut chunk).await?;
         if n == 0 {
-            break;
+            return respond(&mut stream, 400, "text/plain", "incomplete request body").await;
         }
         body.extend_from_slice(&chunk[..n]);
     }
+    // Bytes after Content-Length belong to another message, never this body.
+    body.truncate(content_length);
 
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or_default();
     let full_path = parts.next().unwrap_or_default();
+    let version = parts.next().unwrap_or_default();
+    if !matches!(version, "HTTP/1.0" | "HTTP/1.1")
+        || parts.next().is_some()
+        || !full_path.starts_with('/')
+    {
+        return respond(&mut stream, 400, "text/plain", "invalid request line").await;
+    }
     let (path, query) = full_path.split_once('?').unwrap_or((full_path, ""));
 
     match (method, path) {
@@ -414,17 +584,45 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
 
         ("POST", "/.well-known/groove/connect") => {
             let Ok(consumer) = serde_json::from_slice::<Value>(&body) else {
-                return respond(&mut stream, 400, "application/json", r#"{"error":"body must be a JSON consumer manifest"}"#).await;
+                return respond(
+                    &mut stream,
+                    400,
+                    "application/json",
+                    r#"{"error":"body must be a JSON consumer manifest"}"#,
+                )
+                .await;
             };
+            let findings = groove::validate::validate_manifest_content(
+                &consumer.to_string(),
+                "consumer manifest",
+            );
+            if findings
+                .iter()
+                .any(|f| f.check != "DOG-04" && matches!(f.severity.as_str(), "high" | "critical"))
+                || !bounded_session_metadata(&consumer)
+            {
+                return respond(
+                    &mut stream,
+                    400,
+                    "application/json",
+                    r#"{"error":"invalid consumer manifest"}"#,
+                )
+                .await;
+            }
             let consumes: Vec<String> = consumer["consumes"]
                 .as_array()
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
 
             // All lock use stays in this sync block (guard must not live
             // across an await).
             let (status, body) = {
                 let mut st = state.lock().expect("state lock");
+                st.sweep_leases(Instant::now());
                 let offers = st.offers();
                 let unmet: Vec<String> = consumes
                     .iter()
@@ -437,28 +635,27 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
                     })
                     .collect();
 
-                if !unmet.is_empty() {
+                if st.handles.len() >= MAX_ACTIVE_HANDLES {
+                    (503, r#"{"error":"session capacity reached"}"#.to_string())
+                } else if !unmet.is_empty() {
                     (409, serde_json::to_string(&json!({ "reasons": unmet }))?)
                 } else {
                     // Optional lease (SPEC §4.6): absent = legacy §4.3
                     // semantics, unchanged.
                     match parse_lease(&consumer) {
-                        Err(reason) => {
-                            (400, serde_json::to_string(&json!({ "error": reason }))?)
-                        }
+                        Err(reason) => (400, serde_json::to_string(&json!({ "error": reason }))?),
                         Ok(lease) => {
-                            st.handle_counter += 1;
-                            let handle = format!(
-                                "grv-{}-{}",
-                                st.handle_counter,
-                                rfc3339_now().replace([':', '-'], "")
+                            let handle = mint_token()?;
+                            anyhow::ensure!(
+                                !st.handles.contains_key(&handle),
+                                "random handle collision"
                             );
-                            let consumer_id =
-                                consumer["service_id"].as_str().unwrap_or("anonymous").to_string();
-                            st.handles.insert(
-                                handle.clone(),
-                                HandleEntry { consumer_id, lease },
-                            );
+                            let consumer_id = consumer["service_id"]
+                                .as_str()
+                                .unwrap_or("anonymous")
+                                .to_string();
+                            st.handles
+                                .insert(handle.clone(), HandleEntry { consumer_id, lease });
                             st.attest("groove:connected", &consumer, consumes.clone());
                             let provider_id = st.manifest["service_id"].clone();
                             let mut response = json!({
@@ -510,7 +707,9 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
             };
             match outcome {
                 None => respond_no_content(&mut stream).await,
-                Some((status, body)) => respond(&mut stream, status, "application/json", body).await,
+                Some((status, body)) => {
+                    respond(&mut stream, status, "application/json", body).await
+                }
             }
         }
 
@@ -552,7 +751,7 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<Mutex<State>>) -> R
                     .iter()
                     .map(|(h, entry)| {
                         json!({
-                            "handle": h,
+                            "connection_id": connection_id(h),
                             "consumer": entry.consumer_id,
                             "lease": entry.lease.map(|l| json!({
                                 "mode": l.mode.as_str(),
@@ -589,7 +788,11 @@ fn parse_lease(consumer: &Value) -> std::result::Result<Option<LeaseState>, Stri
     let mode = match lease["mode"].as_str() {
         Some("soft") => LeaseMode::Soft,
         Some("hard") => LeaseMode::Hard,
-        Some(other) => return Err(format!("lease.mode must be 'soft' or 'hard', got '{other}'")),
+        Some(other) => {
+            return Err(format!(
+                "lease.mode must be 'soft' or 'hard', got '{other}'"
+            ));
+        }
         None => return Err("lease.mode is required when lease is present".to_string()),
     };
     let ttl_ms = lease["ttl_ms"]
@@ -603,7 +806,11 @@ fn parse_lease(consumer: &Value) -> std::result::Result<Option<LeaseState>, Stri
             MAX_TTL.as_millis()
         ));
     }
-    Ok(Some(LeaseState { mode, ttl, expires_at: Instant::now() + ttl }))
+    Ok(Some(LeaseState {
+        mode,
+        ttl,
+        expires_at: Instant::now() + ttl,
+    }))
 }
 
 /// Extract a query parameter from a raw query string (no percent-decoding:
@@ -613,6 +820,33 @@ fn query_param(query: &str, name: &str) -> Option<String> {
         let (k, v) = pair.split_once('=')?;
         (k == name && !v.is_empty()).then(|| v.to_string())
     })
+}
+
+fn mint_token() -> Result<String> {
+    let mut bytes = [0u8; 32];
+    getrandom::getrandom(&mut bytes)
+        .map_err(|e| anyhow::anyhow!("OS randomness unavailable: {e}"))?;
+    Ok(format!(
+        "grv-{}",
+        bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    ))
+}
+
+/// Public correlation identifier; never accepted as bearer authority.
+fn connection_id(handle: &str) -> String {
+    format!("sha256:{:x}", Sha256::digest(handle.as_bytes()))
+}
+
+fn loopback_authority(authority: &str) -> bool {
+    if matches!(authority, "localhost" | "127.0.0.1" | "[::1]") {
+        return true;
+    }
+    if let Some(port) = authority.strip_prefix("localhost:") {
+        return port.parse::<u16>().is_ok();
+    }
+    authority
+        .parse::<std::net::SocketAddr>()
+        .is_ok_and(|a| a.ip().is_loopback())
 }
 
 /// Content negotiation (SPEC §2.1.3): serve A2ML only when the Accept header
@@ -661,26 +895,33 @@ pub fn render_a2ml(manifest: &Value) -> String {
         }
     }
     out.push_str("  @end\n");
-    if let Some(consumes) = manifest["consumes"].as_array() {
-        if !consumes.is_empty() {
-            out.push_str("  @consumes:\n");
-            for c in consumes.iter().filter_map(|v| v.as_str()) {
-                out.push_str(&format!("    @capability(id=\"{c}\")\n"));
-            }
-            out.push_str("  @end\n");
+    if let Some(consumes) = manifest["consumes"].as_array()
+        && !consumes.is_empty()
+    {
+        out.push_str("  @consumes:\n");
+        for c in consumes.iter().filter_map(|v| v.as_str()) {
+            out.push_str(&format!("    @capability(id=\"{c}\")\n"));
         }
+        out.push_str("  @end\n");
     }
     out.push_str("@end\n");
     out
 }
 
-async fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &str) -> Result<()> {
+async fn respond(
+    stream: &mut TcpStream,
+    status: u16,
+    content_type: &str,
+    body: &str,
+) -> Result<()> {
     let reason = match status {
         200 => "OK",
         400 => "Bad Request",
+        403 => "Forbidden",
         404 => "Not Found",
         409 => "Conflict",
         410 => "Gone",
+        503 => "Service Unavailable",
         _ => "Unknown",
     };
     let response = format!(

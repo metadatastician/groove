@@ -9,8 +9,8 @@ use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use groove::sign::{public_key_b64, verify_manifest, VerifyOutcome};
-use groove_provider::{serve, Config};
+use groove::sign::{VerifyOutcome, public_key_b64, verify_manifest};
+use groove_provider::{Config, serve};
 
 const SEED: [u8; 32] = [42u8; 32];
 
@@ -42,14 +42,26 @@ async fn signed_manifest_verifies_and_tampering_fails() {
     assert_eq!(manifest["signature"]["alg"], "ed25519");
 
     // Self-consistent, and valid against the correct pin.
-    assert_eq!(verify_manifest(&manifest, None).unwrap(), VerifyOutcome::ValidSelf);
+    assert_eq!(
+        verify_manifest(&manifest, None).unwrap(),
+        VerifyOutcome::ValidSelf
+    );
     let pin = public_key_b64(&SEED);
-    assert_eq!(verify_manifest(&manifest, Some(&pin)).unwrap(), VerifyOutcome::ValidPinned);
+    assert_eq!(
+        verify_manifest(&manifest, Some(&pin)).unwrap(),
+        VerifyOutcome::ValidPinned
+    );
 
     // A spoofed capability breaks the signature; a wrong pin is rejected.
     let mut spoofed = manifest.clone();
     spoofed["capabilities"]["voice"] = serde_json::json!({ "type": "voice" });
-    assert!(verify_manifest(&spoofed, None).is_err(), "spoofing must break the signature");
+    assert!(
+        verify_manifest(&spoofed, None).is_err(),
+        "spoofing must break the signature"
+    );
     let wrong_pin = public_key_b64(&[1u8; 32]);
-    assert!(verify_manifest(&manifest, Some(&wrong_pin)).is_err(), "pin mismatch must fail");
+    assert!(
+        verify_manifest(&manifest, Some(&wrong_pin)).is_err(),
+        "pin mismatch must fail"
+    );
 }

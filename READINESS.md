@@ -1,38 +1,42 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk> -->
+# Groove readiness — 2026-09-05
 
-# Readiness — groove-protocol
+Release decision: **not production-beta approved yet**. This assessment covers
+this repository's Rust CLI/provider, JavaScript client, Zig reference and Idris
+models. It does not assert estate-wide deployment or successful external trials.
 
-Honest status per component, as of 2026-07-02 (the 0.2.0 consolidation).
-Decision records: `docs/decisions/`. This file describes what exists in THIS
-repository — the earlier assessment's estate-wide deployment claims ("65+
-repos", `groove check`, dogfood-gate) and its architecture tree (`src/abi/`,
-`ffi/zig/`, `bindings/`) described work living in other repositories and
-components that do not exist here; they have been removed (ADR 0001).
+| Component | Verified locally | Remaining boundary |
+| --- | --- | --- |
+| Rust CLI and provider, v0.3.0 | Locked debug/release tests, malformed-request and lifecycle regressions, manifest signatures, finite conformance suite | Production load, multi-process integration and target-specific deployment |
+| Provider security | Random bearer tokens; metadata redaction; strict request framing; bounded sessions, sockets, audit history and read deadline | Loopback is not authentication against malicious local software; deployment must decide trust and pinning |
+| Browser client | 12 Bun unit/stub tests plus a real Rust-provider lifecycle test, 9 structural checks, web-ext lint with zero errors/warnings | A real Firefox session against the actual consumer deployment is still needed; these are not GUI tests |
+| GRV6 Zig reference | 10 tests pass on Zig 0.14.1; CI now requires this job | Not the same evidence as an independent production provider |
+| Bebop alignment | 11 recorded variants and three checker self-checks | Not a live Burble–Gossamer capture or universal codec proof |
+| Idris models | Package-based checks and valid/invalid controls; see proofs/README.adoc for compiler evidence | ABI-era structural models, not proof-to-runtime refinement |
+| Browser harness | Inspected, not beta-qualified | Regex A2ML parsing yields empty capabilities; local connection bookkeeping is not a wire handshake; toy hash is not cryptographic attestation |
 
-| Component | State | Evidence |
-|---|---|---|
-| `spec/` | Drafted, v0.2.0-draft. Manifest encoding model added (ADR 0002); conformance checklist is executable; LAYERING annex explicitly aspirational | `spec/*.adoc`; CI `spec-consistency` job |
-| `registry/` | Single source of truth for ports/services; embedded in the CLI at compile time | `cli/tests/registry_consistency.rs` (green) |
-| `cli/` | Builds and runs (init / validate / probe / registry / check-compat / mesh); registry + compat covered by tests | `cargo test --workspace` |
-| `provider/` | Reference provider: dual-stack discovery, JSON/A2ML content negotiation, connect / heartbeat / disconnect lifecycle, hash-chained attestation | `provider/tests/conformance.rs` (one test per CONF-* ID) |
-| `reference/ipv6t/` | Real Zig implementation with tests and bench; **verified only in CI** (zig not in the dev environment); header size corrected to 108 in spec | CI `zig` job (allow-fail until first green) |
-| `harness/groove-harness.js` | Discovery works; its A2ML "parser" is a regex stub returning empty capabilities — JSON support pending (ADR 0002) | `harness/groove-harness.js` `_parseManifest` |
-| `clients/browser-extension/` | Firefox MV2; remediated per ADR 0005 (permissions bug fixed, spec dialect, generated port table) | `web-ext lint`, `tests/validate_structure.sh`, `node --test` |
-| `proofs/` | Relocated from gossamer; **do not typecheck** (still `module Gossamer.ABI.*`); task PROOFS-1 | `proofs/README.adoc`; allow-fail `proofs.yml` |
+## Required release decisions and gates
 
-## Overall grade: C+ (working draft with an executable core)
+1. Capture the real Burble–Gossamer typed-token boundary specified by Spline
+   ADR 0005(d), including stale/forged-token rejection and cleanup on both sides.
+2. Decide the supported beta client surface. The experimental harness must be
+   implemented and integrated before it can be included; it is not silently
+   counted as a working browser/native integration.
+3. Complete home-context use and the CRG policy's six diverse external trials,
+   incorporating feedback. Local test configurations are not external targets.
+4. Review and merge the changes, obtain green remote CI, identify the deployment
+   owner/environment, and rehearse shutdown/restart and rollback there.
 
-The spec, registry, CLI, reference provider, and conformance suite form a
-working, self-contained vertical slice; the type-level guarantees (SPEC §3.3),
-A2ML parsing, GRV6-in-CI, and the proof layer are still open. Grade becomes B
-when: the zig CI job is green and required, PROOFS-1 lands, and the harness
-parses JSON manifests.
+## Reproduction and operations
 
-## What would make this a 1.0
+See [the beta runbook](docs/BETA-RUNBOOK.md). Rust is pinned to 1.97.1, Bun to
+1.3.14 and the Zig reference to 0.14.1. The locked `anyhow` dependency was updated
+from 1.0.102 to 1.0.104 for
+[RUSTSEC-2026-0190](https://rustsec.org/advisories/RUSTSEC-2026-0190.html);
+the resulting lock passed the current RustSec audit with warnings denied.
 
-1. A2ML parsing (promotes the optional encoding to parity, ADR 0002).
-2. PROOFS-1: proofs decoupled, typechecking in CI, claims re-enabled.
-3. A second independent provider implementation passing CONF-L1/L2.
-4. IANA registration of `application/groove+json` / `application/groove+a2ml`
-   and the `groove` well-known URI (RFC 8615).
+The twelve Idris modules retain the upstream module names deliberately. Eight
+vendored dependencies have an independent pinned-source integrity gate and must
+not be changed locally. Mathematical limitations are recorded in
+[proofs/README.adoc](proofs/README.adoc), not represented by an invented grade or
+completion percentage.

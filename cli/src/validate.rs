@@ -38,7 +38,8 @@ pub fn run_with_verify(path: &str, json_output: bool, verify: bool) -> Result<()
     let repo_path = Path::new(path);
 
     // Find the manifest
-    let manifest_path = if repo_path.is_file() && repo_path.extension().map_or(false, |e| e == "json") {
+    let manifest_path = if repo_path.is_file() && repo_path.extension().is_some_and(|e| e == "json")
+    {
         repo_path.to_path_buf()
     } else {
         repo_path.join(".well-known/groove/manifest.json")
@@ -269,21 +270,21 @@ pub fn validate_manifest_content(content: &str, manifest_file: &str) -> Vec<Find
                 }
 
                 // Check protocol is valid
-                if let Some(proto) = cap.get("protocol").and_then(|v| v.as_str()) {
-                    if !registry::is_valid_protocol(proto) {
-                        findings.push(Finding {
-                            file: Some(manifest_file.clone()),
-                            line: None,
-                            severity: "medium".into(),
-                            description: format!(
-                                "Capability '{}' has unknown protocol '{}'. Valid: {}",
-                                key,
-                                proto,
-                                registry::PROTOCOL_TYPES.join(", ")
-                            ),
-                            check: "DOG-03".into(),
-                        });
-                    }
+                if let Some(proto) = cap.get("protocol").and_then(|v| v.as_str())
+                    && !registry::is_valid_protocol(proto)
+                {
+                    findings.push(Finding {
+                        file: Some(manifest_file.clone()),
+                        line: None,
+                        severity: "medium".into(),
+                        description: format!(
+                            "Capability '{}' has unknown protocol '{}'. Valid: {}",
+                            key,
+                            proto,
+                            registry::PROTOCOL_TYPES.join(", ")
+                        ),
+                        check: "DOG-03".into(),
+                    });
                 }
             }
         }
@@ -307,33 +308,74 @@ pub fn validate_manifest_content(content: &str, manifest_file: &str) -> Vec<Find
         }
     }
 
-    // Check 5: consumes array has valid capability types
+    // Recommended/optional scalar fields must be well-shaped when present.
+    if manifest
+        .get("service_version")
+        .is_some_and(|v| !v.as_str().is_some_and(|v| !v.is_empty()))
+    {
+        findings.push(Finding {
+            file: Some(manifest_file.clone()),
+            line: None,
+            severity: "high".into(),
+            description: "service_version must be a non-empty string".into(),
+            check: "DOG-03".into(),
+        });
+    }
+    if manifest
+        .get("mode")
+        .is_some_and(|v| !matches!(v.as_str(), Some("active" | "passive")))
+    {
+        findings.push(Finding {
+            file: Some(manifest_file.clone()),
+            line: None,
+            severity: "high".into(),
+            description: "mode must be 'active' or 'passive'".into(),
+            check: "DOG-03".into(),
+        });
+    }
+
+    // Check 5: malformed consumes must not silently become an empty request.
+    if manifest.get("consumes").is_some_and(|v| {
+        !v.is_array()
+            || v.as_array()
+                .is_some_and(|a| a.iter().any(|v| !v.is_string()))
+    }) {
+        findings.push(Finding {
+            file: Some(manifest_file.clone()),
+            line: None,
+            severity: "high".into(),
+            description: "consumes must be an array of capability type strings".into(),
+            check: "DOG-03".into(),
+        });
+    }
     if let Some(consumes) = manifest.get("consumes").and_then(|v| v.as_array()) {
         for item in consumes {
-            if let Some(cap) = item.as_str() {
-                if !registry::is_valid_capability(cap) {
-                    findings.push(Finding {
-                        file: Some(manifest_file.clone()),
-                        line: None,
-                        severity: "medium".into(),
-                        description: format!("consumes '{}' is not a known capability type", cap),
-                        check: "DOG-03".into(),
-                    });
-                }
+            if let Some(cap) = item.as_str()
+                && !registry::is_valid_capability(cap)
+            {
+                findings.push(Finding {
+                    file: Some(manifest_file.clone()),
+                    line: None,
+                    severity: "medium".into(),
+                    description: format!("consumes '{}' is not a known capability type", cap),
+                    check: "DOG-03".into(),
+                });
             }
         }
     }
 
     // Check 6: Port collision with registry
-    if let Some(service_id) = manifest.get("service_id").and_then(|v| v.as_str()) {
-        if let Some(reg_entry) = registry::find_service(service_id) {
-            // Check endpoints URLs match registry port
-            if let Some(endpoints) = manifest.get("endpoints").and_then(|v| v.as_object()) {
-                for (name, url) in endpoints {
-                    if let Some(url_str) = url.as_str() {
-                        if let Some(port_in_url) = extract_port_from_url(url_str) {
-                            if port_in_url != reg_entry.port {
-                                findings.push(Finding {
+    if let Some(service_id) = manifest.get("service_id").and_then(|v| v.as_str())
+        && let Some(reg_entry) = registry::find_service(service_id)
+    {
+        // Check endpoints URLs match registry port
+        if let Some(endpoints) = manifest.get("endpoints").and_then(|v| v.as_object()) {
+            for (name, url) in endpoints {
+                if let Some(url_str) = url.as_str()
+                    && let Some(port_in_url) = extract_port_from_url(url_str)
+                    && port_in_url != reg_entry.port
+                {
+                    findings.push(Finding {
                                     file: Some(manifest_file.clone()),
                                     line: None,
                                     severity: "high".into(),
@@ -343,9 +385,6 @@ pub fn validate_manifest_content(content: &str, manifest_file: &str) -> Vec<Find
                                     ),
                                     check: "DOG-04".into(),
                                 });
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -389,10 +428,7 @@ fn output_findings(findings: &[Finding], json_output: bool) -> Result<()> {
                 _ => finding.severity.normal(),
             };
 
-            let location = finding
-                .file
-                .as_deref()
-                .unwrap_or("(no file)");
+            let location = finding.file.as_deref().unwrap_or("(no file)");
 
             println!(
                 "[{}] [{}] {} — {}",

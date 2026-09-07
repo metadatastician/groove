@@ -37,16 +37,20 @@ async fn main() -> Result<()> {
 
     let manifest = match &cli.manifest {
         Some(path) => {
-            let text = std::fs::read_to_string(path)
-                .with_context(|| format!("read manifest {path}"))?;
+            let text =
+                std::fs::read_to_string(path).with_context(|| format!("read manifest {path}"))?;
             Some(serde_json::from_str(&text).with_context(|| format!("parse manifest {path}"))?)
         }
         None => None,
     };
 
-    let seed_b64 = cli.signing_key.or_else(|| std::env::var("GROOVE_SIGNING_KEY").ok());
+    let seed_b64 = cli
+        .signing_key
+        .or_else(|| std::env::var("GROOVE_SIGNING_KEY").ok());
     let signing_seed = match seed_b64 {
-        Some(b64) => Some(groove::sign::decode_seed(&b64).context("--signing-key / GROOVE_SIGNING_KEY")?),
+        Some(b64) => {
+            Some(groove::sign::decode_seed(&b64).context("--signing-key / GROOVE_SIGNING_KEY")?)
+        }
         None => None,
     };
     let signed = signing_seed.is_some();
@@ -68,5 +72,6 @@ async fn main() -> Result<()> {
     // Serve until interrupted.
     tokio::signal::ctrl_c().await?;
     println!("groove-provider: shutting down");
+    server.shutdown().await;
     Ok(())
 }

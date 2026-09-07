@@ -16,7 +16,7 @@ pub enum ProjectType {
     Elixir,
     Deno,
     Zig,
-    Cli,     // No HTTP server detected — passive mode
+    Cli, // No HTTP server detected — passive mode
     Unknown,
 }
 
@@ -114,19 +114,16 @@ fn detect_name_version(path: &Path, project_type: &ProjectType) -> (String, Stri
         ProjectType::Deno => {
             for fname in &["deno.json", "deno.jsonc"] {
                 let deno = path.join(fname);
-                if let Ok(content) = fs::read_to_string(&deno) {
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                        let name = val["name"]
-                            .as_str()
-                            .unwrap_or("")
-                            .trim_start_matches("@hyperpolymath/")
-                            .to_string();
-                        let version = val["version"]
-                            .as_str()
-                            .unwrap_or("0.1.0")
-                            .to_string();
-                        return (name, version);
-                    }
+                if let Ok(content) = fs::read_to_string(&deno)
+                    && let Ok(val) = serde_json::from_str::<serde_json::Value>(&content)
+                {
+                    let name = val["name"]
+                        .as_str()
+                        .unwrap_or("")
+                        .trim_start_matches("@hyperpolymath/")
+                        .to_string();
+                    let version = val["version"].as_str().unwrap_or("0.1.0").to_string();
+                    return (name, version);
                 }
             }
         }
@@ -159,19 +156,15 @@ fn detect_http_server(path: &Path, project_type: &ProjectType) -> bool {
                 ],
             )
         }
-        ProjectType::Elixir => {
-            grep_files_recursive(
-                path,
-                &["ex", "exs"],
-                &["Plug.Cowboy", "Bandit", "Phoenix.Endpoint"],
-            )
-        }
+        ProjectType::Elixir => grep_files_recursive(
+            path,
+            &["ex", "exs"],
+            &["Plug.Cowboy", "Bandit", "Phoenix.Endpoint"],
+        ),
         ProjectType::Deno => {
             grep_files_recursive(path, &["js", "ts", "res"], &["Deno.serve", "oak", "hono"])
         }
-        ProjectType::Zig => {
-            grep_files_recursive(path, &["zig"], &["std.http.Server", "httpz"])
-        }
+        ProjectType::Zig => grep_files_recursive(path, &["zig"], &["std.http.Server", "httpz"]),
         _ => false,
     }
 }
@@ -183,8 +176,8 @@ fn detect_routes(path: &Path, project_type: &ProjectType) -> Vec<DetectedRoute> 
     match project_type {
         ProjectType::Rust => {
             // Scan for axum .route() calls
-            let re = Regex::new(r#"\.route\(\s*"([^"]+)"\s*,\s*(get|post|put|delete|patch)\("#)
-                .unwrap();
+            let re =
+                Regex::new(r#"\.route\(\s*"([^"]+)"\s*,\s*(get|post|put|delete|patch)\("#).unwrap();
             scan_files_for_pattern(path, &["rs"], &re, &mut routes);
         }
         ProjectType::Elixir => {
@@ -220,12 +213,7 @@ fn detect_dependencies(path: &Path, project_type: &ProjectType) -> Vec<String> {
         }
         ProjectType::Elixir => {
             if let Ok(content) = fs::read_to_string(path.join("mix.exs")) {
-                for dep in &[
-                    "verisim_client",
-                    "hypatia",
-                    "echidna",
-                    "feedback_o_tron",
-                ] {
+                for dep in &["verisim_client", "hypatia", "echidna", "feedback_o_tron"] {
                     if content.contains(dep) {
                         deps.push(dep.to_string());
                     }
@@ -236,21 +224,20 @@ fn detect_dependencies(path: &Path, project_type: &ProjectType) -> Vec<String> {
     }
 
     // Also check source code for VeriSimDB references
-    if grep_files_recursive(path, &["rs", "ex", "js", "ts", "res"], &["verisimdb", "VeriSimDB"])
+    if grep_files_recursive(
+        path,
+        &["rs", "ex", "js", "ts", "res"],
+        &["verisimdb", "VeriSimDB"],
+    ) && !deps.contains(&"verisimdb".to_string())
     {
-        if !deps.contains(&"verisimdb".to_string()) {
-            deps.push("verisimdb".to_string());
-        }
+        deps.push("verisimdb".to_string());
     }
 
     deps
 }
 
 /// Suggest capabilities based on detected routes and dependencies.
-fn suggest_capabilities(
-    routes: &[DetectedRoute],
-    deps: &[String],
-) -> Vec<SuggestedCap> {
+fn suggest_capabilities(routes: &[DetectedRoute], deps: &[String]) -> Vec<SuggestedCap> {
     let mut caps = Vec::new();
 
     for route in routes {
@@ -374,14 +361,13 @@ fn grep_files_recursive(path: &Path, extensions: &[&str], patterns: &[&str]) -> 
 
     for entry in walker {
         let p = entry.path();
-        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-            if extensions.contains(&ext) {
-                if let Ok(content) = fs::read_to_string(p) {
-                    for pattern in patterns {
-                        if content.contains(pattern) {
-                            return true;
-                        }
-                    }
+        if let Some(ext) = p.extension().and_then(|e| e.to_str())
+            && extensions.contains(&ext)
+            && let Ok(content) = fs::read_to_string(p)
+        {
+            for pattern in patterns {
+                if content.contains(pattern) {
+                    return true;
                 }
             }
         }
@@ -410,19 +396,18 @@ fn scan_files_for_pattern(
         {
             continue;
         }
-        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-            if extensions.contains(&ext) {
-                if let Ok(content) = fs::read_to_string(p) {
-                    for (line_num, line) in content.lines().enumerate() {
-                        if let Some(caps) = re.captures(line) {
-                            routes.push(DetectedRoute {
-                                path: caps[1].to_string(),
-                                method: caps[2].to_uppercase(),
-                                file: p.to_string_lossy().to_string(),
-                                line: (line_num + 1) as u32,
-                            });
-                        }
-                    }
+        if let Some(ext) = p.extension().and_then(|e| e.to_str())
+            && extensions.contains(&ext)
+            && let Ok(content) = fs::read_to_string(p)
+        {
+            for (line_num, line) in content.lines().enumerate() {
+                if let Some(caps) = re.captures(line) {
+                    routes.push(DetectedRoute {
+                        path: caps[1].to_string(),
+                        method: caps[2].to_uppercase(),
+                        file: p.to_string_lossy().to_string(),
+                        line: (line_num + 1) as u32,
+                    });
                 }
             }
         }
@@ -450,19 +435,18 @@ fn scan_files_for_pattern_elixir(
         {
             continue;
         }
-        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-            if extensions.contains(&ext) {
-                if let Ok(content) = fs::read_to_string(p) {
-                    for (line_num, line) in content.lines().enumerate() {
-                        if let Some(caps) = re.captures(line) {
-                            routes.push(DetectedRoute {
-                                method: caps[1].to_uppercase(),
-                                path: caps[2].to_string(),
-                                file: p.to_string_lossy().to_string(),
-                                line: (line_num + 1) as u32,
-                            });
-                        }
-                    }
+        if let Some(ext) = p.extension().and_then(|e| e.to_str())
+            && extensions.contains(&ext)
+            && let Ok(content) = fs::read_to_string(p)
+        {
+            for (line_num, line) in content.lines().enumerate() {
+                if let Some(caps) = re.captures(line) {
+                    routes.push(DetectedRoute {
+                        method: caps[1].to_uppercase(),
+                        path: caps[2].to_string(),
+                        file: p.to_string_lossy().to_string(),
+                        line: (line_num + 1) as u32,
+                    });
                 }
             }
         }

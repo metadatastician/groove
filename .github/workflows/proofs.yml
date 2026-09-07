@@ -19,12 +19,16 @@ on:
     branches: ['**']
     paths:
       - 'proofs/**'
+      - 'tests/proofs/**'
+      - 'tests/check_proofs.sh'
       - 'groove-proofs.ipkg'
       - '.github/workflows/proofs.yml'
   push:
     branches: [main]
     paths:
       - 'proofs/**'
+      - 'tests/proofs/**'
+      - 'tests/check_proofs.sh'
       - 'groove-proofs.ipkg'
       - '.github/workflows/proofs.yml'
   schedule:
@@ -76,4 +80,4 @@ jobs:
           make install
           echo "$HOME/.idris2/bin" >> "$GITHUB_PATH"
       - name: Typecheck the proofs package
-        run: idris2 --typecheck groove-proofs.ipkg
+        run: bash tests/check_proofs.sh "$RUNNER_TEMP/groove-proof-evidence"

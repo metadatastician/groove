@@ -142,10 +142,7 @@ pub fn run(
         if is_passive { "passive" } else { "active" }
     );
     println!("  capabilities: {}", capabilities.len());
-    println!(
-        "  consumes:     {}",
-        info.suggested_consumes.join(", ")
-    );
+    println!("  consumes:     {}", info.suggested_consumes.join(", "));
 
     if !info.detected_routes.is_empty() {
         println!();
@@ -161,9 +158,7 @@ pub fn run(
     // Warnings
     if capabilities.values().any(|v| v["type"] == "custom") {
         println!();
-        println!(
-            "  WARNING: Could not auto-detect capabilities. Edit the manifest to replace"
-        );
+        println!("  WARNING: Could not auto-detect capabilities. Edit the manifest to replace");
         println!("           the 'custom' placeholder with the correct capability type.");
         println!(
             "           Valid types: {}",
