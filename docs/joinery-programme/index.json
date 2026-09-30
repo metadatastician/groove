@@ -1,0 +1,36 @@
+{
+  "$comment": "SPDX-License-Identifier: CC-BY-SA-4.0. Machine-readable index of the Joinery Programme prompt pack. One entry per prompt file. Consumed by humans and by scripts that open GitHub issues (see README.md §How to use).",
+  "programme": "joinery",
+  "revision": "2026-09-29",
+  "repos": {
+    "groove": "metadatastician/groove",
+    "cleave": "metadatastician/cleave",
+    "spline": "metadatastician/spline"
+  },
+  "prompts": [
+    {"id": "J-01", "phase": 0, "repo": "groove", "file": "J-01-joinery-interface-control-document.md", "title": "Joinery interface control document + pin registry", "depends_on": [], "blocks": ["J-02", "J-04", "C-01", "S-05"], "owner_decision": false, "size": "medium"},
+    {"id": "J-02", "phase": 0, "repo": "groove", "file": "J-02-joinery-integration-gate.md", "title": "The joinery integration gate (trio end-to-end, negative controls, honest pending)", "depends_on": ["J-01"], "blocks": ["J-03", "J-04", "J-05"], "owner_decision": false, "size": "large"},
+    {"id": "S-01", "phase": 1, "repo": "spline", "file": "S-01-close-criterion-d.md", "title": "Close ADR 0005 criterion (d): acceptance harness, fixture formats, mapping reconciliation", "depends_on": [], "blocks": ["J-03", "S-02"], "owner_decision": false, "size": "medium"},
+    {"id": "G-01", "phase": 1, "repo": "groove", "file": "G-01-token-and-lease-binding.md", "title": "Bind handles and leases to real capability operations; stale/forged rejection", "depends_on": [], "blocks": ["J-03"], "owner_decision": false, "size": "medium"},
+    {"id": "C-01", "phase": 1, "repo": "cleave", "file": "C-01-groove-session-as-cleave-surface.md", "title": "A groove session as a cleave surface (LAYERING annex made real)", "depends_on": ["J-01"], "blocks": ["J-03", "C-04"], "owner_decision": false, "size": "large"},
+    {"id": "J-03", "phase": 1, "repo": "spline", "file": "J-03-live-pairing-capture.md", "title": "The live Burble–Gossamer pairing capture (closes spline (d), groove gate 1, cleave TS-7)", "depends_on": ["S-01", "G-01", "C-01"], "blocks": ["S-02", "J-04"], "owner_decision": true, "size": "large"},
+    {"id": "S-02", "phase": 2, "repo": "spline", "file": "S-02-promotion-review.md", "title": "Promotion review: record all four criteria, unblock src/", "depends_on": ["J-03"], "blocks": ["S-03", "S-04"], "owner_decision": true, "size": "small"},
+    {"id": "S-03", "phase": 2, "repo": "spline", "file": "S-03-stable-mapping.md", "title": "Version the mapping; pass fixtures through two independent implementations", "depends_on": ["S-02"], "blocks": ["S-04", "S-05"], "owner_decision": false, "size": "medium"},
+    {"id": "S-04", "phase": 2, "repo": "spline", "file": "S-04-implement-wire-layer.md", "title": "Implement the wire layer: plane multiplexing, opaque tokens, posture-blind by construction", "depends_on": ["S-03", "J-01"], "blocks": ["S-05", "J-04"], "owner_decision": false, "size": "large"},
+    {"id": "S-05", "phase": 2, "repo": "spline", "file": "S-05-interop-fault-injection-beta.md", "title": "Interop matrix, fault injection, media-plane properties, beta acceptance", "depends_on": ["S-04"], "blocks": ["J-04", "J-05"], "owner_decision": false, "size": "large"},
+    {"id": "S-06", "phase": 2, "repo": "spline", "file": "S-06-hygiene-status-truth.md", "title": "Hygiene: remove template residue and false test claims; ≤5 real workflows", "depends_on": [], "blocks": [], "owner_decision": false, "size": "small"},
+    {"id": "G-02", "phase": 2, "repo": "groove", "file": "G-02-levels-3-4-executable.md", "title": "Make Levels 3 and 4 executable — or descope them by ADR", "depends_on": [], "blocks": ["G-03", "J-04"], "owner_decision": false, "size": "large"},
+    {"id": "G-03", "phase": 2, "repo": "groove", "file": "G-03-proofs-refounding-and-ffi.md", "title": "Proofs re-founding (Groove.* rename, SPEC data model) + Level 3 Idris2/Zig FFI", "depends_on": ["G-02"], "blocks": ["J-04"], "owner_decision": true, "size": "large"},
+    {"id": "G-04", "phase": 2, "repo": "groove", "file": "G-04-browser-surface.md", "title": "Browser surface: implement and integrate the harness, or retire it by ADR", "depends_on": [], "blocks": ["G-06", "J-04"], "owner_decision": true, "size": "medium"},
+    {"id": "G-05", "phase": 2, "repo": "groove", "file": "G-05-spec-registry-media-types.md", "title": "Spec/registry coherence, A2ML decision, registration dossier, GRV6 Zig 0.16", "depends_on": [], "blocks": ["J-04"], "owner_decision": true, "size": "medium"},
+    {"id": "G-06", "phase": 3, "repo": "groove", "file": "G-06-beta-operations.md", "title": "Beta operations: load, multi-process, restart/rollback rehearsal, deployment owner", "depends_on": ["G-04", "J-03"], "blocks": ["J-05"], "owner_decision": true, "size": "large"},
+    {"id": "G-07", "phase": 2, "repo": "groove", "file": "G-07-hygiene-ci-consolidation.md", "title": "Hygiene: ≤5 real workflows, governance/hypatia decision, CHANGELOG and known-issues close-out", "depends_on": [], "blocks": ["J-04"], "owner_decision": false, "size": "small"},
+    {"id": "C-02", "phase": 2, "repo": "cleave", "file": "C-02-two-peer-clean-cleave.md", "title": "Two peers: joint completion (O-6) and clean-XOR-rupture (O-7) over a real wire", "depends_on": [], "blocks": ["C-04", "J-04"], "owner_decision": false, "size": "large"},
+    {"id": "C-03", "phase": 2, "repo": "cleave", "file": "C-03-second-dial-point-snif.md", "title": "Second dial point: the SNIF/wasmtime sandbox stage with crash isolation", "depends_on": [], "blocks": ["C-04", "J-04"], "owner_decision": true, "size": "large"},
+    {"id": "C-04", "phase": 2, "repo": "cleave", "file": "C-04-full-invariants-and-dial.md", "title": "Full dial: N-stage staircase and zipper, RC-1..13, TS-3/5/6/7, G-4, scheduler decision", "depends_on": ["C-01", "C-02"], "blocks": ["C-05", "J-04"], "owner_decision": true, "size": "large"},
+    {"id": "C-05", "phase": 3, "repo": "cleave", "file": "C-05-proofs-and-refinement.md", "title": "Proofs and the refinement boundary: extend mirrors, state what is proved vs tested vs assumed", "depends_on": ["C-04"], "blocks": ["J-04"], "owner_decision": false, "size": "large"},
+    {"id": "C-06", "phase": 2, "repo": "cleave", "file": "C-06-hygiene-and-adrs.md", "title": "Hygiene and the missing ADR series", "depends_on": [], "blocks": ["J-04"], "owner_decision": false, "size": "small"},
+    {"id": "J-04", "phase": 4, "repo": "groove", "file": "J-04-release-train.md", "title": "Release train: versions, pins, changelogs, one joinery status page", "depends_on": ["J-02", "S-04", "G-02", "C-04"], "blocks": ["J-05"], "owner_decision": true, "size": "medium"},
+    {"id": "J-05", "phase": 5, "repo": "groove", "file": "J-05-external-trials-and-acceptance.md", "title": "External trials, CRG evidence, honest-ledger reconciliation, final acceptance", "depends_on": ["J-04", "G-06", "S-05"], "blocks": [], "owner_decision": true, "size": "large"}
+  ]
+}
