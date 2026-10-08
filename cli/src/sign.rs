@@ -210,4 +210,22 @@ mod tests {
             VerifyOutcome::Unsigned
         );
     }
+
+    /// The sign path refuses what it cannot sign exactly: a float anywhere in
+    /// the manifest (groove's integer-only profile) and an integer outside
+    /// ±(2^53−1) (I-JSON, RFC 7493 §2.2).
+    #[test]
+    fn sign_refuses_floats_and_unsafe_integers() {
+        let mut with_float = manifest();
+        with_float["capabilities"]["attest"]["weight"] = json!(0.5);
+        assert!(sign_manifest(&with_float, &SEED).is_err());
+
+        let mut with_big_int = manifest();
+        with_big_int["ttl"] = json!(9007199254740992u64);
+        assert!(sign_manifest(&with_big_int, &SEED).is_err());
+
+        let mut at_the_bound = manifest();
+        at_the_bound["ttl"] = json!(9007199254740991u64);
+        assert!(sign_manifest(&at_the_bound, &SEED).is_ok());
+    }
 }
