@@ -190,11 +190,20 @@ A manifest MAY carry a detached `signature` member (ADR 0010):
 }
 ----
 
-The signed payload is the canonical JSON serialisation (UTF-8,
-lexicographically sorted object keys, minimal separators — the JCS subset
-sufficient for manifest values) of the manifest object **with the
-`signature` member removed**. Verifiers MUST reconstruct that canonical
-form; producers MUST NOT rely on any other serialisation being checked.
+The signed payload is the JCS (RFC 8785) serialisation of the manifest
+object **with the `signature` member removed**: UTF-8, object keys sorted
+by UTF-16 code units (RFC 8785 §3.2.3), minimal separators, JCS string
+escaping. The manifest MUST be I-JSON (RFC 7493), so integers lie within
+±(2^53−1). Numbers in a signed manifest MUST be integers; signers MUST
+refuse a float (ADR 0010, amended 2026-10-08). Verifiers MUST reconstruct
+that canonical form; producers MUST NOT rely on any other serialisation
+being checked.
+
+Verifiers MUST parse the manifest as I-JSON before reconstructing the
+canonical form, and MUST treat a repeated object key (RFC 7493 §2.3) as a
+failed verification. A parser that keeps the last of two repeated keys
+would verify a signature over one value, while a consumer that keeps the
+first reads another.
 
 Trust anchoring: `registry/groove-registry.json` MAY pin a `public_key`
 per service. When a registry pin exists, consumers MUST verify the

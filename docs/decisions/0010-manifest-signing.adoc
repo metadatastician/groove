@@ -46,3 +46,55 @@ LAYERING annex already anticipated a "typed, signable" manifest.
 * Key management is deliberately out of scope here: seeds live in
   deployment secrets (env), never in the repo. Rotation = update the
   registry pin (a reviewed change, like any registry edit).
+
+== Amendment (2026-10-08): canonical bytes from ijson-jcs
+
+The Decision's "JCS subset" was looser than it claimed. A differential probe
+against `hyperpolymath/ijson-jcs`, the estate's JSON canon (I-JSON, RFC 7493,
+plus JCS, RFC 8785), found three gaps in `cli/src/canonical.rs`:
+
+* object keys were sorted by UTF-8 bytes, not by UTF-16 code units
+  (RFC 8785 §3.2.3). The two orders agree on ASCII and on every key below
+  U+E000, but diverge when a key at U+E000 or above meets a key outside the
+  Basic Multilingual Plane;
+* integers outside ±(2^53−1) were signed exactly, though they are not
+  I-JSON (RFC 7493 §2.2) and other verifiers read them as doubles;
+* the verify path parsed with last-wins duplicate keys, so a manifest could
+  carry a repeated key that a first-wins consumer reads differently under a
+  valid signature (RFC 7493 §2.3).
+
+Amended decision:
+
+. **Canonical bytes** are `ijson_jcs::to_jcs` over the manifest without its
+  `signature` member. The crate is a git dependency of `cli/` pinned to a
+  commit; the pin moves deliberately, because canonical bytes are part of
+  every signature.
+. **Integers only, still.** Groove keeps its own guard and refuses any float
+  on the sign path before ijson-jcs runs. ijson-jcs would format a double
+  per ECMAScript; manifests carry versions, ports and TTLs, so a float in a
+  manifest is a mistake, not a value to sign. Integers are bounded to
+  ±(2^53−1).
+. **Strict parse at verify.** `groove validate --verify` parses with
+  `JsonMode::Strict`. A repeated key, an unsafe integer or another I-JSON
+  violation is a `critical` `DOG-03-SIG` finding, and the signature, if
+  any, is not verified. This holds for unsigned manifests too: the registry pin is
+  looked up by `service_id`, so a repeated `service_id` would otherwise
+  choose which pin applies.
+
+Compatibility: the canonical bytes are unchanged for every manifest that is
+I-JSON (integers within ±(2^53−1), no noncharacter such as U+FFFE in any
+string) and has no object holding both a key with a code point in
+U+E000–U+FFFF and a key outside the Basic Multilingual Plane. Measured
+2026-10-08 over 59 files (58 JSON files under `.well-known/groove`
+directories in the local estate checkouts, plus `examples/minimal-manifest.json`;
+two non-JSON files in those directories were skipped): all 59 canonicalise
+to identical bytes under the old and new code, and all 59 are I-JSON, so
+the Strict parse refuses none of them. Manifests outside that set were
+not measured. A manifest previously signed with an integer beyond the bound
+or a noncharacter no longer verifies, and must be re-signed without it; one
+signed with keys in the diverging ranges no longer verifies either, and
+must be re-signed.
+
+Burble's stretch leg must match these bytes. The shared test vectors in
+`canonical.rs` now include a UTF-16 key-order vector, the ±(2^53−1)
+bound and a noncharacter refusal.

@@ -88,10 +88,29 @@ pub fn run_with_verify(path: &str, json_output: bool, verify: bool) -> Result<()
 
 /// Signature verification as findings (SPEC §2.1.5). Unsigned without a
 /// registry pin is a `low` note; every hard failure (pinned-but-unsigned,
-/// pin mismatch, bad signature) is `critical` — treat as failed discovery.
+/// pin mismatch, bad signature, a manifest that is not I-JSON, signed or
+/// not) is `critical` — treat as failed discovery.
 pub fn verify_signature_finding(content: &str, manifest_file: &str) -> Vec<Finding> {
-    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(content) else {
+    if serde_json::from_str::<serde_json::Value>(content).is_err() {
         return Vec::new(); // Check 1 already reported invalid JSON.
+    }
+    // Parse Strict (RFC 7493) before anything else, signed or not: a repeated
+    // key is refused, never collapsed. A last-wins parse would verify a
+    // signature over one value while a first-wins consumer reads another, and
+    // a repeated `service_id` would choose which registry pin applies.
+    let manifest = match ijson_jcs::parse_json(content, ijson_jcs::JsonMode::Strict) {
+        Ok(manifest) => manifest,
+        Err(e) => {
+            return vec![Finding {
+                file: Some(manifest_file.to_string()),
+                line: None,
+                severity: "critical".into(),
+                description: format!(
+                    "Manifest is not I-JSON (RFC 7493), so its signature and registry pin were not checked: {e}"
+                ),
+                check: "DOG-03-SIG".into(),
+            }];
+        }
     };
     let pin = manifest["service_id"]
         .as_str()
