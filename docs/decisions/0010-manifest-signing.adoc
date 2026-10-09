@@ -126,5 +126,4 @@ Amended decision, superseding point 3 above:
 Not covered: the reference provider (`provider/`) parses the bodies it is
 sent and its `--manifest` file last-wins before it calls
 `validate_manifest_content`, so a repeated key there has already collapsed
-when Check 1 sees it. Integers above `u64::MAX` currently pass ijson-jcs's
-Strict mode; that gap is upstream, in ijson-jcs.
+when Check 1 sees it.

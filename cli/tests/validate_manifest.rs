@@ -166,6 +166,22 @@ fn check_1_refuses_an_integer_beyond_2_pow_53() {
     );
 }
 
+/// An integer beyond the `u64`/`i64` range, which `serde_json` reads as a
+/// float, is refused at Check 1 like any other integer outside ±(2^53−1).
+/// ijson-jcs before `f135af2` let these through Strict mode.
+#[test]
+fn check_1_refuses_an_integer_beyond_the_u64_and_i64_range() {
+    for literal in ["18446744073709551616", "-9223372036854775809"] {
+        let mutated = minimal_manifest().replacen('{', &format!(r#"{{"ttl":{literal},"#), 1);
+        let findings = validate_manifest_content(&mutated, "huge.json");
+        assert_eq!(
+            critical_check1_findings(&findings).len(),
+            1,
+            "{literal} is outside ±(2^53−1) and must be critical at Check 1, got: {findings:#?}"
+        );
+    }
+}
+
 /// Boundary control for the refusal above: 2^53−1 itself is I-JSON, so the
 /// same mutation one below the bound raises nothing at Check 1.
 #[test]
