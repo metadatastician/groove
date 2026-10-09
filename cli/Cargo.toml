@@ -17,7 +17,7 @@ clap = { version = "4", features = ["derive"] }
 ed25519-dalek = "2"
 # The estate JSON canon (I-JSON + JCS), pinned to a commit of its main.
 # Move the rev deliberately; canonical bytes are part of the signature.
-ijson-jcs = { git = "https://github.com/hyperpolymath/ijson-jcs", rev = "38e81e24b036e5804f074af309d385ffc3f6691c" }
+ijson-jcs = { git = "https://github.com/hyperpolymath/ijson-jcs", rev = "f135af2e76ed5d310530055db1ede15057ba1e41" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
