@@ -140,8 +140,9 @@ pub async fn run(host: &str, extra_ports: Option<&str>, timeout_ms: u64) -> Resu
                             consumes,
                             mode,
                         });
+                        break; // Don't try IPv4 if IPv6 worked
                     }
-                    break; // Don't try IPv4 if IPv6 worked
+                    // Not I-JSON: try the next host on this port, as `mesh` does.
                 }
                 Ok(None) => {
                     // Port open but no Groove manifest
