@@ -88,29 +88,17 @@ pub fn run_with_verify(path: &str, json_output: bool, verify: bool) -> Result<()
 
 /// Signature verification as findings (SPEC §2.1.5). Unsigned without a
 /// registry pin is a `low` note; every hard failure (pinned-but-unsigned,
-/// pin mismatch, bad signature, a manifest that is not I-JSON, signed or
-/// not) is `critical` — treat as failed discovery.
+/// pin mismatch, bad signature) is `critical` — treat as failed discovery.
+///
+/// A manifest that is not I-JSON gets no finding here: Check 1 of
+/// [`validate_manifest_content`] reports it as `critical` `DOG-03`, and its
+/// signature is not checked. Call both, as `groove validate --verify` does.
 pub fn verify_signature_finding(content: &str, manifest_file: &str) -> Vec<Finding> {
-    if serde_json::from_str::<serde_json::Value>(content).is_err() {
-        return Vec::new(); // Check 1 already reported invalid JSON.
-    }
-    // Parse Strict (RFC 7493) before anything else, signed or not: a repeated
-    // key is refused, never collapsed. A last-wins parse would verify a
-    // signature over one value while a first-wins consumer reads another, and
-    // a repeated `service_id` would choose which registry pin applies.
-    let manifest = match ijson_jcs::parse_json(content, ijson_jcs::JsonMode::Strict) {
-        Ok(manifest) => manifest,
-        Err(e) => {
-            return vec![Finding {
-                file: Some(manifest_file.to_string()),
-                line: None,
-                severity: "critical".into(),
-                description: format!(
-                    "Manifest is not I-JSON (RFC 7493), so its signature and registry pin were not checked: {e}"
-                ),
-                check: "DOG-03-SIG".into(),
-            }];
-        }
+    // The same Strict parse as Check 1, so a manifest Check 1 refused is
+    // not reported a second time, and a repeated key never reaches the
+    // signature or the registry-pin lookup.
+    let Ok(manifest) = ijson_jcs::parse_json(content, ijson_jcs::JsonMode::Strict) else {
+        return Vec::new();
     };
     let pin = manifest["service_id"]
         .as_str()
@@ -150,20 +138,28 @@ pub fn verify_signature_finding(content: &str, manifest_file: &str) -> Vec<Findi
 }
 
 /// Validate manifest content (checks 1–7). Pure — returns findings instead of
-/// printing, so tests and the reference provider can reuse it.
+/// printing, so tests and the reference provider can reuse it. Check 1
+/// parses the text as I-JSON (RFC 7493) and stops at a `critical` `DOG-03`
+/// finding when it is not.
 pub fn validate_manifest_content(content: &str, manifest_file: &str) -> Vec<Finding> {
     let mut findings: Vec<Finding> = Vec::new();
     let manifest_file = manifest_file.to_string();
 
-    // Check 1: Valid JSON
-    let manifest: serde_json::Value = match serde_json::from_str(content) {
+    // Check 1: valid I-JSON (RFC 7493; SPEC §2.1.5), parsed Strict. A
+    // repeated key is refused, never collapsed: a last-wins parse would let
+    // the checks below read one value while a first-wins consumer reads
+    // another, and a repeated `service_id` would choose which registry pin
+    // applies. An integer outside ±(2^53−1) is refused too.
+    let manifest = match ijson_jcs::parse_json(content, ijson_jcs::JsonMode::Strict) {
         Ok(v) => v,
         Err(e) => {
             findings.push(Finding {
                 file: Some(manifest_file.clone()),
                 line: Some(1),
                 severity: "critical".into(),
-                description: format!("Invalid JSON: {}", e),
+                description: format!(
+                    "Manifest is not I-JSON (RFC 7493), so no other check ran: {e}"
+                ),
                 check: "DOG-03".into(),
             });
             return findings;

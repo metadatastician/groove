@@ -78,8 +78,7 @@ pub async fn run(host: &str, extra_ports: Option<&str>, timeout_ms: u64) -> Resu
 
             match probe_groove(&addr, probe_timeout).await {
                 Ok(Some(manifest_json)) => {
-                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_json)
-                    {
+                    if let Some(manifest) = parse_probed_manifest(&manifest_json) {
                         let service_id = manifest["service_id"]
                             .as_str()
                             .unwrap_or("unknown")
@@ -181,7 +180,7 @@ pub async fn mesh(json: &bool) -> Result<()> {
         for host in &["::1", "127.0.0.1"] {
             let addr = format!("{}:{}", host, port);
             if let Ok(Some(manifest_json)) = probe_groove(&addr, probe_timeout).await
-                && let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_json)
+                && let Some(manifest) = parse_probed_manifest(&manifest_json)
             {
                 let service_id = manifest["service_id"]
                     .as_str()
@@ -340,6 +339,15 @@ pub async fn probe_groove(addr: &str, probe_timeout: Duration) -> Result<Option<
     }
 
     Ok(None)
+}
+
+/// Parse a probed manifest as I-JSON (RFC 7493), Strict. `None` when the
+/// text is not I-JSON, so `probe` and `mesh` leave that service out, as they
+/// already do for text that is not JSON at all. A repeated key is refused,
+/// not collapsed, so the listing never shows a `service_id` that another
+/// consumer of the same manifest would read differently.
+pub fn parse_probed_manifest(manifest_json: &str) -> Option<serde_json::Value> {
+    ijson_jcs::parse_json(manifest_json, ijson_jcs::JsonMode::Strict).ok()
 }
 
 /// Simple timestamp without pulling in chrono.

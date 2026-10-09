@@ -98,3 +98,33 @@ must be re-signed.
 Burble's stretch leg must match these bytes. The shared test vectors in
 `canonical.rs` now include a UTF-16 key-order vector, the ±(2^53−1)
 bound and a noncharacter refusal.
+
+== Amendment (2026-10-09): Strict parse at Check 1
+
+The 2026-10-08 amendment put the Strict parse in `--verify` only. Plain
+`groove validate`, `groove probe` and `groove mesh` still parsed last-wins,
+so the I-JSON rule held only when someone asked for verification, and a
+manifest with a repeated `service_id` was listed by `probe` under its last
+value.
+
+Amended decision, superseding point 3 above:
+
+. **Check 1 parses Strict.** `validate_manifest_content` parses the
+  manifest with `ijson_jcs::JsonMode::Strict`. A repeated key, an integer
+  outside ±(2^53−1) or another I-JSON violation is a `critical` `DOG-03`
+  finding on every `groove validate` run, with or without `--verify`, and
+  no other check runs on that manifest.
+. **Verify reports nothing on a manifest Check 1 refused.**
+  `verify_signature_finding` uses the same Strict parse and returns no
+  finding when it fails, so `groove validate --verify` reports such a
+  manifest once, as `DOG-03`, and never as merely unsigned. Its signature
+  and registry pin are not checked. The `DOG-03-SIG` finding for a
+  manifest that is not I-JSON is retired.
+. **`probe` and `mesh` parse Strict.** A probed manifest that is not
+  I-JSON is left out of the listing, as one that is not JSON was before.
+
+Not covered: the reference provider (`provider/`) parses the bodies it is
+sent and its `--manifest` file last-wins before it calls
+`validate_manifest_content`, so a repeated key there has already collapsed
+when Check 1 sees it. Integers above `u64::MAX` currently pass ijson-jcs's
+Strict mode; that gap is upstream, in ijson-jcs.
