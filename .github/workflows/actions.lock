@@ -29,6 +29,8 @@ workflows:
         - 'actions/checkout@v7.0.1'
     '.github/workflows/push-email-notify.yml':
         - 'hyperpolymath/smtp-notify-action@v0.5.1'
+    '.github/workflows/secret-scanner.yml':
+        - 'metadatastician/standards@b8f60511e76c9015d86990317162dce653c92fe1'
     '.github/workflows/workflow-safety.yml':
         - 'actions/checkout@v7.0.1'
 dependencies:
@@ -84,6 +86,13 @@ dependencies:
         commit: 'sha1-e384daf6167a7a7567642d6a62060106244d2413'
         owner_id: 6759885
         repo_id: 1352485172
+    'metadatastician/standards@b8f60511e76c9015d86990317162dce653c92fe1':
+        ref: 'b8f60511e76c9015d86990317162dce653c92fe1'
+        commit: 'sha1-b8f60511e76c9015d86990317162dce653c92fe1'
+        owner_id: 297579217
+        repo_id: 1116521501
+        uses:
+            - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
     'mlugg/setup-zig@v2.2.1':
         ref: 'v2.2.1'
         commit: 'sha1-d1434d08867e3ee9daa34448df10607b98908d29'
