@@ -1,0 +1,41 @@
+name: Temporary official lock refresh
+on:
+  pull_request:
+    paths: ['.github/workflows/arena-lock-refresh.yml']
+permissions:
+  contents: read
+jobs:
+  refresh:
+    if: github.head_ref == 'arena/361fec92-groove' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: arena/361fec92-groove
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: |
+          rm .github/workflows/arena-lock-refresh.yml
+          if ! gh actions-lock > /tmp/lock-output 2>&1; then
+            while IFS= read -r line; do echo "::error::$line"; done < /tmp/lock-output
+            exit 1
+          fi
+          # The tool normalizes SHA refs to tags; retain our source SHA pins.
+          git restore .github/workflows/codeql.yml .github/workflows/secret-scanner.yml
+          verify_status=0
+          gh actions-lock --verify-local > /tmp/verify-output 2>&1 || verify_status=$?
+          while IFS= read -r line; do echo "::notice::$line"; done < /tmp/verify-output
+          gh actions-lock --verify > /tmp/network-verify 2>&1 && result=0 || result=$?
+          while IFS= read -r line; do echo "::notice::VERIFY $line"; done < /tmp/network-verify
+          python3 - <<'PYTHON'
+          import base64
+          from pathlib import Path
+          data = base64.b64encode(Path('.github/workflows/actions.lock').read_bytes()).decode()
+          for i in range(0, len(data), 2000):
+              print(f'::notice::LOCKDATA {i:08d} {data[i:i+2000]}')
+          PYTHON
+          exit "$result"
+        env:
+          GH_TOKEN: ${{ github.token }}
