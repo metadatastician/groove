@@ -22,6 +22,8 @@ jobs:
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/lock-output
             exit 1
           fi
+          # The tool normalizes SHA refs to tags; retain our source SHA pins.
+          git restore .github/workflows/codeql.yml .github/workflows/secret-scanner.yml
           verify_status=0
           gh actions-lock --verify-local > /tmp/verify-output 2>&1 || verify_status=$?
           while IFS= read -r line; do echo "::notice::$line"; done < /tmp/verify-output
