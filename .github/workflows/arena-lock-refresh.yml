@@ -23,11 +23,13 @@ jobs:
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/lock-output
             exit 1
           fi
-          gh actions-lock --verify-local
+          verify_status=0
+          gh actions-lock --verify-local > /tmp/verify-output 2>&1 || verify_status=$?
+          while IFS= read -r line; do echo "::notice::$line"; done < /tmp/verify-output
           python3 - <<'PYTHON'
           import json
           from pathlib import Path
-          Path('/tmp/comment.json').write_text(json.dumps({'body': 'Official gh actions-lock v0.1.6 output (verified):\n```yaml\n' + Path('.github/workflows/actions.lock').read_text() + '\n```'}))
+          Path('/tmp/comment.json').write_text(json.dumps({'body': 'Official gh actions-lock v0.1.6 output:\n' + Path('/tmp/verify-output').read_text() + '\n```yaml\n' + Path('.github/workflows/actions.lock').read_text() + '\n```'}))
           PYTHON
           gh api repos/${{ github.repository }}/issues/67/comments --input /tmp/comment.json
         env:
