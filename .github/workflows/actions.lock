@@ -10,8 +10,8 @@ workflows:
         - 'oven-sh/setup-bun@v2.2.0'
         - 'swatinem/rust-cache@v2.9.3'
     '.github/workflows/codeql.yml':
-        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'github/codeql-action@9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
+        - 'actions/checkout@v7.0.1'
+        - 'github/codeql-action@v4.39.1'
     '.github/workflows/dependency-audit.yml':
         - 'actions/checkout@v7.0.1'
         - 'dtolnay/rust-toolchain@v1'
@@ -29,16 +29,11 @@ workflows:
         - 'actions/checkout@v7.0.1'
     '.github/workflows/push-email-notify.yml':
         - 'hyperpolymath/smtp-notify-action@v0.5.1'
-    '.github/workflows/secret-scanner.yml':
-        - 'metadatastician/standards@b8f60511e76c9015d86990317162dce653c92fe1'
+    '.github/workflows/scorecard.yml': []
+    '.github/workflows/secret-scanner.yml': []
     '.github/workflows/workflow-safety.yml':
         - 'actions/checkout@v7.0.1'
 dependencies:
-    'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1':
-        ref: 'v7.0.1'
-        commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
-        owner_id: 44036562
-        repo_id: 197814629
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
@@ -66,11 +61,6 @@ dependencies:
         commit: 'sha1-e97e2d8cc328f1b50210efc529dca0028893a2d9'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@9b3254085494b55a0f7c4c2b3d2d52cc712ce370':
-        ref: 'v4.39.1'
-        commit: 'sha1-9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
-        owner_id: 9919
-        repo_id: 259445878
     'github/codeql-action@v4.39.1':
         ref: 'v4.39.1'
         commit: 'sha1-9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
@@ -86,13 +76,6 @@ dependencies:
         commit: 'sha1-e384daf6167a7a7567642d6a62060106244d2413'
         owner_id: 6759885
         repo_id: 1352485172
-    'metadatastician/standards@b8f60511e76c9015d86990317162dce653c92fe1':
-        ref: 'b8f60511e76c9015d86990317162dce653c92fe1'
-        commit: 'sha1-b8f60511e76c9015d86990317162dce653c92fe1'
-        owner_id: 297579217
-        repo_id: 1116521501
-        uses:
-            - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
     'mlugg/setup-zig@v2.2.1':
         ref: 'v2.2.1'
         commit: 'sha1-d1434d08867e3ee9daa34448df10607b98908d29'
