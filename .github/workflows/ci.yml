@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       # Pinned to the v1 TAG, not the `stable` BRANCH. dtolnay force-moves
       # `stable` on each Rust release, so a lockfile pin to it stops being
       # reachable from the branch and enforcement rejects the job with
@@ -52,6 +54,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.3.14"
@@ -63,6 +67,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.3.14"
@@ -77,6 +83,8 @@ jobs:
     # Verified locally on Zig 0.14.1: all 10 GRV6 tests pass. This is required.
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       # Pin the zig version the reference targets. The code uses std.net
       # (Address.parseIp6 / addr.listen / server.accept) and
       # std.time.nanoTimestamp — both removed by zig 0.16's std.Io networking
@@ -94,6 +102,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.3.14"

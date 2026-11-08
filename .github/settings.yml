@@ -7,14 +7,14 @@
 # applied by the probot/settings app when changes are pushed to the default
 # branch. Install the app at: https://github.com/apps/settings
 #
-# Repository settings — configured for paint-type.
+# Repository settings — configured for groove.
 
 # ─── Repository Settings ───────────────────────────────────────────────────────
 
 repository:
-  name: "paint-type"
-  description: "Cross-platform open-source image editor — capable enough for real work, simple enough to reach for without thinking"
-  homepage: "https://github.com/metadatastician/paint-type"
+  name: "groove"
+  description: "Rust protocol for zero-configuration service discovery and runtime capability negotiation, allowing independent systems to compose through type-checked structural fit."
+  homepage: ""
   private: false
   has_issues: true
   has_projects: true
@@ -113,24 +113,10 @@ labels:
 
 # ─── Branch Protection ─────────────────────────────────────────────────────────
 
-branches:
-  - name: "main"
-    protection:
-      required_pull_request_reviews:
-        required_approving_review_count: 1
-        dismiss_stale_reviews: true
-        require_code_owner_reviews: true
-        require_last_push_approval: true
-        required_review_thread_resolution: true
-      required_status_checks:
-        strict: true
-        contexts:
-          - "Cargo check + clippy + fmt"
-          - "Cargo test"
-          - "analyze (javascript-typescript, none)"
-          - "openssf-compliance"
-      enforce_admins: true
-      required_signatures: true
-      restrictions: null
-      allow_force_pushes: false
-      allow_deletions: false
+# Organization rulesets are authoritative; do not add a duplicate branches: block.
+# Effective main rules: https://github.com/metadatastician/groove/rules
+# Branch-Floor (23868655): deletion/force-push prevention, linear history,
+# and secret-scanning alert resolution.
+# EstateBranching (18225024): signed commits, pull requests, code-owner review,
+# stale-review dismissal, resolved review threads, and squash/rebase merges.
+# Inspect live rules before changing policy; this file does not mirror them.

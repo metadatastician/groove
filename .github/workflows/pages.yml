@@ -10,8 +10,6 @@ on:
 permissions:
   actions: read
   contents: read
-  pages: write
-  id-token: write
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -24,9 +22,12 @@ jobs:
     steps:
       - name: Checkout Site
         uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: Checkout Ddraig SSG
         uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           repository: hyperpolymath/ddraig-ssg
           path: .ddraig-ssg
       - name: Compile Ddraig
@@ -46,6 +47,11 @@ jobs:
         with:
           path: '_site'
   deploy:
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

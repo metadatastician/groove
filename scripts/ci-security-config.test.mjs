@@ -72,11 +72,11 @@ test("CodeQL actions are immutable and checkout credentials are not persisted", 
   assert.equal(checkout.with?.["persist-credentials"], false);
   assert.equal(
     initialize.uses,
-    "github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+    "github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
   );
   assert.equal(
     analyze.uses,
-    "github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+    "github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
   );
 
   for (const step of [checkout, initialize, analyze]) assertCommitPinned(step.uses);
