@@ -4,7 +4,6 @@ on:
     paths: ['.github/workflows/arena-lock-refresh.yml']
 permissions:
   contents: read
-  issues: write
 jobs:
   refresh:
     if: github.head_ref == 'arena/361fec92-groove' && github.event.pull_request.head.repo.full_name == github.repository
@@ -26,11 +25,15 @@ jobs:
           verify_status=0
           gh actions-lock --verify-local > /tmp/verify-output 2>&1 || verify_status=$?
           while IFS= read -r line; do echo "::notice::$line"; done < /tmp/verify-output
+          gh actions-lock --verify > /tmp/network-verify 2>&1 && result=0 || result=$?
+          while IFS= read -r line; do echo "::notice::VERIFY $line"; done < /tmp/network-verify
           python3 - <<'PYTHON'
-          import json
+          import base64
           from pathlib import Path
-          Path('/tmp/comment.json').write_text(json.dumps({'body': 'Official gh actions-lock v0.1.6 output:\n' + Path('/tmp/verify-output').read_text() + '\n```yaml\n' + Path('.github/workflows/actions.lock').read_text() + '\n```'}))
+          data = base64.b64encode(Path('.github/workflows/actions.lock').read_bytes()).decode()
+          for i in range(0, len(data), 2000):
+              print(f'::notice::LOCKDATA {i:08d} {data[i:i+2000]}')
           PYTHON
-          gh api repos/${{ github.repository }}/issues/67/comments --input /tmp/comment.json
+          exit "$result"
         env:
           GH_TOKEN: ${{ github.token }}
