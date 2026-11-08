@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: arena/361fec92-groove
-      - run: gh extension install github/gh-actions-lock --pin v0.1.6
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
         env:
           GH_TOKEN: ${{ github.token }}
       - run: |
           rm .github/workflows/arena-lock-refresh.yml
-          rm .github/workflows/actions.lock
           if ! gh actions-lock > /tmp/lock-output 2>&1; then
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/lock-output
             exit 1
