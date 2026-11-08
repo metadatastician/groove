@@ -3,7 +3,8 @@ on:
   pull_request:
     paths: ['.github/workflows/arena-lock-refresh.yml']
 permissions:
-  contents: write
+  contents: read
+  issues: write
 jobs:
   refresh:
     if: github.head_ref == 'arena/361fec92-groove' && github.event.pull_request.head.repo.full_name == github.repository
@@ -17,12 +18,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - run: |
           rm .github/workflows/arena-lock-refresh.yml
-          gh actions-lock
+          rm .github/workflows/actions.lock
+          if ! gh actions-lock > /tmp/lock-output 2>&1; then
+            while IFS= read -r line; do echo "::error::$line"; done < /tmp/lock-output
+            exit 1
+          fi
           gh actions-lock --verify-local
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows
-          git commit -m 'ci: regenerate action lock with official v0.1.6 and remove bootstrap'
-          git push origin HEAD:arena/361fec92-groove
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          Path('/tmp/comment.json').write_text(json.dumps({'body': 'Official gh actions-lock v0.1.6 output (verified):\n```yaml\n' + Path('.github/workflows/actions.lock').read_text() + '\n```'}))
+          PYTHON
+          gh api repos/${{ github.repository }}/issues/67/comments --input /tmp/comment.json
         env:
           GH_TOKEN: ${{ github.token }}
